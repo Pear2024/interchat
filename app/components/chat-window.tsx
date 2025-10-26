@@ -143,8 +143,8 @@ export default function ChatWindow({
   }, [fetchLatestMessages, roomId, supabase]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-6 pt-8">
-      <div className="flex items-center justify-between">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 pt-6 sm:px-6 sm:pt-8">
+      <div className="hidden items-center justify-between lg:flex">
         <div>
           <h2 className="text-xl font-semibold text-white">{roomName}</h2>
           <p className="text-sm text-slate-400">
@@ -168,11 +168,16 @@ export default function ChatWindow({
           </button>
         </div>
       </div>
-
+      <div className="mb-4 lg:hidden">
+        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">About this room</p>
+        <p className="mt-1 text-sm text-slate-300">
+          {roomDescription || "Realtime multilingual workspace"}
+        </p>
+      </div>
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="mt-6 flex-1 space-y-6 overflow-y-auto pr-4 min-h-0 pb-6"
+        className="mt-4 flex-1 space-y-5 overflow-y-auto pr-2 min-h-0 pb-4 sm:mt-6 sm:space-y-6 sm:pr-4 sm:pb-6"
       >
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
@@ -207,11 +212,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     translationText.length > 0 && !sameLanguage && !duplicateText;
 
   return (
-    <div className={`flex items-start gap-4 ${alignment}`}>
+    <div className={`flex items-start gap-3 sm:gap-4 ${alignment}`}>
       <Avatar initials={author.initials} gradient={author.accent} />
-      <div className="flex max-w-2xl flex-col gap-3">
+      <div className="flex max-w-[82vw] flex-col gap-3 sm:max-w-2xl">
         <div
-          className={`relative w-full rounded-[26px] px-6 py-5 shadow-xl shadow-black/20 backdrop-blur ${bubbleBg}`}
+          className={`relative w-full rounded-[24px] px-4 py-4 shadow-xl shadow-black/20 backdrop-blur sm:rounded-[26px] sm:px-6 sm:py-5 ${bubbleBg}`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.35em] text-slate-500">
@@ -258,11 +263,11 @@ function Avatar({
   gradient: string;
 }) {
   return (
-    <div className="relative flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-slate-900/40 shadow-lg shadow-black/40">
+    <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-slate-900/40 shadow-lg shadow-black/40 sm:h-12 sm:w-12">
       <span
         className={`absolute inset-[2px] rounded-full bg-gradient-to-br ${gradient} opacity-80`}
       />
-      <span className="relative text-sm font-semibold text-white uppercase">
+      <span className="relative text-xs font-semibold uppercase text-white sm:text-sm">
         {initials}
       </span>
     </div>
@@ -320,16 +325,16 @@ export function Composer({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex shrink-0 flex-col gap-4 px-6 py-6"
+      className="flex shrink-0 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-6 sm:py-6"
     >
-      <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] uppercase tracking-[0.3em] text-slate-500 sm:text-xs">
         <span>Auto translation active</span>
         <span>Retention: 48 hours</span>
       </div>
-      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.08] p-3 shadow-inner shadow-black/30">
+      <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] p-3 shadow-inner shadow-black/30 sm:gap-3">
         <button
           type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:border-white/40 hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:border-white/40 hover:text-white sm:h-10 sm:w-10"
         >
           <span className="sr-only">Attach file</span>
           <PaperclipIcon />
@@ -337,13 +342,13 @@ export function Composer({
         <input
           value={content}
           onChange={(event) => setContent(event.target.value)}
-          className="flex-1 bg-transparent text-base font-medium text-white placeholder:text-slate-400 focus:outline-none"
+          className="flex-1 bg-transparent text-sm font-medium text-white placeholder:text-slate-400 focus:outline-none sm:text-base"
           placeholder="Type a message (we will translate for every participant)"
           disabled={isPending || isBlocked}
         />
         <button
           type="submit"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-xl shadow-indigo-500/40 transition hover:scale-105"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-xl shadow-indigo-500/40 transition hover:scale-105 sm:h-12 sm:w-12"
           disabled={isBlocked || isPending || !content.trim()}
         >
           <span className="sr-only">Send message</span>
