@@ -26,12 +26,14 @@ export default function RoomSidebar({
   analytics,
   isAdmin = false,
   isOwner = false,
+  className,
 }: {
   rooms: RoomOption[];
   profile: { name: string; language: string };
   analytics?: import("./analytics-panel").RoomAnalytics | null;
   isAdmin?: boolean;
   isOwner?: boolean;
+  className?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -90,9 +92,12 @@ export default function RoomSidebar({
       setPendingRoomId(null);
     });
   };
+  const baseClasses =
+    "w-72 flex flex-col border-r border-white/10 bg-black/40 px-6 py-8 shadow-xl shadow-black/40 backdrop-blur-xl";
+  const visibilityClasses = className ?? "hidden lg:flex";
 
   return (
-    <aside className="hidden w-72 flex-col border-r border-white/10 bg-black/40 px-6 py-8 shadow-xl shadow-black/40 backdrop-blur-xl lg:flex">
+    <aside className={`${visibilityClasses} ${baseClasses}`}>
       <div>
         <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Profile</p>
         <h2 className="mt-2 text-xl font-semibold text-white">{profile.name}</h2>

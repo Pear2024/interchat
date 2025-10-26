@@ -7,6 +7,7 @@ import { ensureProfile } from "@/app/actions/ensure-profile";
 import { getServerSupabaseClient, getServiceSupabaseClient } from "@/lib/supabaseServer";
 import { computeRoomAnalytics } from "@/lib/analytics";
 import DirectMessageNotifier from "@/app/components/direct-message-notifier";
+import MobileSidebarDrawer from "@/app/components/mobile-sidebar-drawer";
 
 type SidebarMembership = {
   role: string | null;
@@ -213,6 +214,16 @@ export default async function RoomsDashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-[radial-gradient(circle_at_top,_#1b233a,_#090b12_55%)] text-slate-50">
+      <MobileSidebarDrawer
+        rooms={rooms}
+        profile={{
+          name: profile?.display_name ?? user.email ?? "Member",
+          language: preferredLanguage,
+        }}
+        analytics={analytics}
+        isAdmin={isAdmin}
+        isOwner={isOwner}
+      />
       <RoomSidebar
         rooms={rooms}
         profile={{

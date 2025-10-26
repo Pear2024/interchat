@@ -390,30 +390,26 @@ function MobileToolbar({
   status: SupabaseStatus;
 }) {
   return (
-    <div className="sticky top-0 z-30 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-slate-950/70 px-3 py-3 backdrop-blur-xl lg:hidden">
+    <div className="sticky top-0 z-30 mt-12 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-slate-950/70 px-5 py-3 backdrop-blur-xl lg:hidden">
       <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/rooms"
-          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/30 hover:bg-white/20"
-        >
-          ← Rooms
-        </Link>
-        <div className="flex flex-1 flex-col items-end gap-1 text-right">
+        <div className="flex flex-col">
           <h1 className="text-lg font-semibold text-white line-clamp-1">{roomName}</h1>
           <span className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
             #{roomSlug}
           </span>
+        </div>
+        <div className="flex items-center gap-2">
           <span
-            className={`text-[10px] font-semibold uppercase tracking-[0.3em] ${
-              isLocked ? "text-rose-300" : "text-emerald-300"
+            className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] ${
+              isLocked ? "bg-rose-500/10 text-rose-300" : "bg-emerald-500/10 text-emerald-300"
             }`}
           >
             {isLocked ? "Locked" : "Open room"}
           </span>
+          {canControlLock ? (
+            <LockToggleButton roomId={roomId} isLocked={isLocked} />
+          ) : null}
         </div>
-        {canControlLock ? (
-          <LockToggleButton roomId={roomId} isLocked={isLocked} />
-        ) : null}
       </div>
       {description ? (
         <p className="text-sm text-slate-300">{description}</p>
