@@ -328,14 +328,16 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-[radial-gradient(circle_at_top,_#1b233a,_#090b12_55%)] px-3 py-6 text-slate-50 sm:px-4 sm:py-8 lg:py-10">
-      <div className="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 rounded-[32px] border border-white/10 bg-white/5 bg-clip-padding p-4 shadow-[0_40px_80px_-30px_rgba(15,23,42,0.9)] backdrop-blur-xl sm:p-6 lg:p-8">
+    <div className="flex min-h-screen w-full flex-col bg-[radial-gradient(circle_at_top,_#1b233a,_#090b12_55%)] text-slate-50">
+      <div className="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-4 px-3 pb-6 pt-5 sm:px-4 sm:pb-8 sm:pt-8 lg:gap-6">
         <MobileToolbar
           roomName={room.name}
           roomSlug={room.slug}
           isLocked={isLocked}
           canControlLock={canControlLock}
           roomId={room.id}
+          description={room.description}
+          status={supabaseStatus}
         />
         <div className="hidden lg:block">
           <Header
@@ -346,7 +348,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
             canControlLock={canControlLock}
           />
         </div>
-        <div className="flex flex-1 min-h-0 flex-col rounded-3xl border border-white/5 bg-slate-950/40 shadow-inner">
+        <div className="flex flex-1 min-h-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/50 shadow-[0_20px_60px_-25px_rgba(12,20,38,0.9)] backdrop-blur-xl lg:rounded-3xl lg:border-white/5 lg:bg-slate-950/40">
           <div className="flex-1 min-h-0 overflow-hidden">
             <ChatWindow
               initialMessages={messages}
@@ -376,39 +378,60 @@ function MobileToolbar({
   isLocked,
   canControlLock,
   roomId,
+  description,
+  status,
 }: {
   roomName: string;
   roomSlug: string;
   isLocked: boolean;
   canControlLock: boolean;
   roomId: string;
+  description: string | null;
+  status: SupabaseStatus;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 lg:hidden">
-      <Link
-        href="/rooms"
-        className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/20"
-      >
-        ← Rooms
-      </Link>
-      <div className="flex flex-1 flex-col items-end gap-2 text-right">
-        <h1 className="text-lg font-semibold text-white line-clamp-1">{roomName}</h1>
-        <span className="text-xs uppercase tracking-[0.3em] text-slate-400">
-          #{roomSlug}
-        </span>
-        {isLocked ? (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-rose-300">
-            Locked
+    <div className="sticky top-0 z-30 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-slate-950/70 px-3 py-3 backdrop-blur-xl lg:hidden">
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/rooms"
+          className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/30 hover:bg-white/20"
+        >
+          ← Rooms
+        </Link>
+        <div className="flex flex-1 flex-col items-end gap-1 text-right">
+          <h1 className="text-lg font-semibold text-white line-clamp-1">{roomName}</h1>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+            #{roomSlug}
           </span>
-        ) : (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-300">
-            Open room
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-[0.3em] ${
+              isLocked ? "text-rose-300" : "text-emerald-300"
+            }`}
+          >
+            {isLocked ? "Locked" : "Open room"}
           </span>
-        )}
+        </div>
+        {canControlLock ? (
+          <LockToggleButton roomId={roomId} isLocked={isLocked} />
+        ) : null}
       </div>
-      {canControlLock ? (
-        <LockToggleButton roomId={roomId} isLocked={isLocked} />
+      {description ? (
+        <p className="text-sm text-slate-300">{description}</p>
       ) : null}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 font-medium text-emerald-200">
+          <span className="relative inline-flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-current" />
+          </span>
+          Supabase {status.state === "ready" ? "connected" : "error"}
+        </span>
+        <span className="text-slate-400">
+          {status.state === "ready"
+            ? `${status.description}`
+            : status.description}
+        </span>
+      </div>
     </div>
   );
 }
