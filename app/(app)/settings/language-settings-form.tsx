@@ -57,24 +57,9 @@ export default function LanguageSettingsForm({
     setSelectedLanguage(code);
   };
 
-  const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/rooms");
-    }
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-        >
-          ← Back
-        </button>
         <h2 className="text-2xl font-semibold text-white">Language preference</h2>
       </div>
       <p className="text-sm text-slate-400">
