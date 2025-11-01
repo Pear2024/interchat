@@ -90,6 +90,11 @@ export default function VoiceTranslator({
       .filter(Boolean);
     return ordered.join("\n\n");
   }, [transcripts]);
+  const liveNarrative = useMemo(() => {
+    return transcripts.length > 0
+      ? transcripts[0]?.translated ?? ""
+      : displayedNarrative;
+  }, [displayedNarrative, transcripts]);
 
   useEffect(() => {
     displayedNarrativeRef.current = displayedNarrative;
@@ -657,32 +662,22 @@ export default function VoiceTranslator({
         >
           <section className="flex h-full w-full flex-col space-y-4 rounded-3xl border border-white/10 bg-slate-950/40 px-6 py-6 shadow-inner shadow-black/30">
             <header className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">คำแปล</h3>
+              <h3 className="text-lg font-semibold text-white">คำแปลล่าสุด</h3>
               <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
                 Target: {targetLanguage.toUpperCase()}
               </span>
             </header>
             <div className="min-h-[200px] rounded-2xl border border-white/10 bg-slate-950/60 px-5 py-4 shadow-inner shadow-black/20">
-              {displayedNarrative ? (
+              {liveNarrative ? (
                 <p
                   className="font-semibold text-emerald-100 whitespace-pre-wrap"
                   style={{ fontSize: `${fontSize}px`, lineHeight: 1.35 }}
                 >
-                  {displayedNarrative}
-                </p>
-              ) : liveTranslation ? (
-                <p
-                  className="font-semibold text-emerald-100 whitespace-pre-wrap"
-                  style={{ fontSize: `${fontSize}px`, lineHeight: 1.35 }}
-                >
-                  {liveTranslation}
+                  {liveNarrative}
                 </p>
               ) : (
                 <p className="text-sm text-slate-500">ระบบจะแปลและแสดงผลอัตโนมัติ</p>
               )}
-              {isTranslatingLive ? (
-                <p className="mt-3 text-xs text-emerald-200">กำลังแปล...</p>
-              ) : null}
             </div>
             {pendingQueue.length > 0 ? (
               <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
@@ -696,6 +691,19 @@ export default function VoiceTranslator({
                 </ul>
               </div>
             ) : null}
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-xs text-slate-300">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">แสดงพร้อมกัน</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-200">
+                {liveOriginal}
+              </p>
+              <hr className="my-3 border-white/10" />
+              <p className="text-xs uppercase tracking-[0.3em] text-emerald-200">
+                Translation
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-emerald-200">
+                {liveNarrative || liveTranslation || ""}
+              </p>
+            </div>
           <div className="flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="flex items-center justify-between">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">ประวัติ (คำแปล)</p>
