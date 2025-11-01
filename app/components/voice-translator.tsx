@@ -372,11 +372,18 @@ export default function VoiceTranslator({
     [enqueueTranslation]
   );
 
+  const interimDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleInterimTranscript = useCallback(
     (text: string) => {
       const trimmed = text.trim();
       setLiveOriginal(trimmed);
       liveOriginalRef.current = trimmed;
+
+      if (interimDebounceRef.current) {
+        clearTimeout(interimDebounceRef.current);
+        interimDebounceRef.current = null;
+      }
 
       if (!trimmed) {
         setInterimSegments([]);
@@ -384,23 +391,20 @@ export default function VoiceTranslator({
         return;
       }
 
-      setInterimSegments((current) => {
-        const updated = current.filter(
-          (segment) => segment.status !== "interim"
-        );
-        const createdAt = Date.now();
-        updated.unshift({
-          id: `${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
-          original: trimmed,
-          translated: "",
-          sourceLanguage: "unknown",
-          timestamp: new Date(createdAt).toLocaleTimeString(),
-          createdAt,
-          status: "interim",
-        });
+      interimDebounceRef.current = setTimeout(() => {
+        setInterimSegments([
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            original: trimmed,
+            translated: "",
+            sourceLanguage: "unknown",
+            timestamp: new Date().toLocaleTimeString(),
+            createdAt: Date.now(),
+            status: "interim",
+          },
+        ]);
         lastInterimTextRef.current = trimmed;
-        return updated;
-      });
+      }, 150);
     },
     []
   );
