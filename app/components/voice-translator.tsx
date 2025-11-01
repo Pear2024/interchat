@@ -23,6 +23,7 @@ type PendingChunk = {
   id: string;
   text: string;
   createdAt: number;
+  status: "final" | "partial";
 };
 
 type Transcript = {
@@ -32,8 +33,10 @@ type Transcript = {
   sourceLanguage: string;
   timestamp: string;
   createdAt: number;
-  status: "interim" | "final";
+  status: "interim" | "partial" | "final";
 };
+
+const PARTIAL_CHUNK_WORDS = 12;
 
 const INPUT_LANGUAGE_OPTIONS = [
   { value: "th-TH", label: "Thai" },
@@ -70,6 +73,8 @@ export default function VoiceTranslator({
   const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveOriginalRef = useRef<string>("");
   const lastInterimTextRef = useRef<string>("");
+  const partialBufferRef = useRef<string>("");
+  const processedPartialRef = useRef<Set<string>>(new Set());
   const displayedNarrativeRef = useRef("");
   const isTranslatingLiveRef = useRef(false);
   const narrativeLengthRef = useRef(0);
@@ -91,9 +96,11 @@ export default function VoiceTranslator({
     return ordered.join("\n\n");
   }, [transcripts]);
   const liveNarrative = useMemo(() => {
-    return transcripts.length > 0
-      ? transcripts[0]?.translated ?? ""
-      : displayedNarrative;
+    if (transcripts.length === 0) {
+      return displayedNarrative;
+    }
+    const latestFinal = transcripts.find((item) => item.status === "final");
+    return latestFinal?.translated ?? displayedNarrative;
   }, [displayedNarrative, transcripts]);
 
   useEffect(() => {
@@ -247,7 +254,6 @@ export default function VoiceTranslator({
     }
 
     updateQueueState();
-    await new Promise((resolve) => setTimeout(resolve, 500));
     isTranslatingLiveRef.current = true;
     setIsTranslatingLive(true);
 
@@ -261,13 +267,22 @@ export default function VoiceTranslator({
         sourceLanguage: result?.detected ?? "unknown",
         timestamp: new Date(nextItem.createdAt).toLocaleTimeString(),
         createdAt: nextItem.createdAt,
-        status: "final",
+        status: nextItem.status,
       };
 
       setError(null);
-      setLiveOriginal(nextItem.text);
-      setLiveTranslation(translated);
-      setTranscripts((current) => [entry, ...current]);
+      if (nextItem.status === "final") {
+        setLiveOriginal(nextItem.text);
+        setLiveTranslation(translated);
+        processedPartialRef.current.clear();
+        partialBufferRef.current = "";
+        setTranscripts((current) => [
+          entry,
+          ...current.filter((item) => item.status !== "partial"),
+        ]);
+      } else {
+        setTranscripts((current) => [entry, ...current]);
+      }
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {
         translationQueueRef.current.unshift(nextItem);
@@ -288,10 +303,12 @@ export default function VoiceTranslator({
         sourceLanguage: "unknown",
         timestamp: new Date(nextItem.createdAt).toLocaleTimeString(),
         createdAt: nextItem.createdAt,
-        status: "final",
+        status: nextItem.status,
       };
-      setLiveOriginal(nextItem.text);
-      setLiveTranslation("(translation unavailable)");
+      if (nextItem.status === "final") {
+        setLiveOriginal(nextItem.text);
+        setLiveTranslation("(translation unavailable)");
+      }
       setTranscripts((current) => [entry, ...current]);
       setError(
         error instanceof Error ? error.message : "ไม่สามารถแปลได้"
@@ -308,7 +325,7 @@ export default function VoiceTranslator({
   }, [translateSegment, stopLiveInterval, updateQueueState]);
 
   const enqueueTranslation = useCallback(
-    (text: string) => {
+    (text: string, status: "final" | "partial" = "final") => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
@@ -317,6 +334,7 @@ export default function VoiceTranslator({
         id: `${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
         text: trimmed,
         createdAt,
+        status,
       };
 
       translationQueueRef.current.push(item);
@@ -354,6 +372,8 @@ export default function VoiceTranslator({
       setIsTranslatingLive(false);
       liveOriginalRef.current = "";
       lastInterimTextRef.current = "";
+      partialBufferRef.current = "";
+      processedPartialRef.current.clear();
     },
     [stopLiveInterval]
   );
@@ -372,8 +392,10 @@ export default function VoiceTranslator({
       setInterimSegments((current) =>
         current.filter((segment) => segment.original.trim() !== trimmed)
       );
+      processedPartialRef.current.clear();
+      partialBufferRef.current = "";
       lastInterimTextRef.current = "";
-      enqueueTranslation(trimmed);
+      enqueueTranslation(trimmed, "final");
     },
     [enqueueTranslation]
   );
@@ -394,6 +416,7 @@ export default function VoiceTranslator({
       if (!trimmed) {
         setInterimSegments([]);
         lastInterimTextRef.current = "";
+        partialBufferRef.current = "";
         return;
       }
 
@@ -411,8 +434,32 @@ export default function VoiceTranslator({
         ]);
         lastInterimTextRef.current = trimmed;
       }, 150);
+
+      const previous = lastInterimTextRef.current;
+      let addition = trimmed;
+      if (previous && trimmed.startsWith(previous)) {
+        addition = trimmed.slice(previous.length).trim();
+      } else if (previous && previous.length > trimmed.length) {
+        partialBufferRef.current = trimmed;
+        addition = "";
+      }
+
+      if (addition) {
+        partialBufferRef.current = `${partialBufferRef.current} ${addition}`.trim();
+        const words = partialBufferRef.current.split(/\s+/).filter(Boolean);
+        while (words.length >= PARTIAL_CHUNK_WORDS) {
+          const chunkWords = words.splice(0, PARTIAL_CHUNK_WORDS);
+          const chunkText = chunkWords.join(" ");
+          if (!processedPartialRef.current.has(chunkText)) {
+            processedPartialRef.current.add(chunkText);
+            enqueueTranslation(chunkText, "partial");
+          }
+        }
+        partialBufferRef.current = words.join(" ");
+      }
+      lastInterimTextRef.current = trimmed;
     },
-    []
+    [enqueueTranslation]
   );
 
   const startListening = useCallback(() => {
