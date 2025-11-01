@@ -38,6 +38,10 @@ type Transcript = {
 const INPUT_LANGUAGE_OPTIONS = [
   { value: "th-TH", label: "Thai" },
   { value: "en-US", label: "English" },
+  { value: "he-IL", label: "Hebrew" },
+  { value: "es-ES", label: "Spanish" },
+  { value: "fil-PH", label: "Tagalog" },
+  { value: "el-GR", label: "Greek" },
   { value: "jp-JP", label: "Japanese" },
   { value: "zh-CN", label: "Chinese" },
 ];
