@@ -242,6 +242,7 @@ export default function VoiceTranslator({
     }
 
     updateQueueState();
+    await new Promise((resolve) => setTimeout(resolve, 500));
     isTranslatingLiveRef.current = true;
     setIsTranslatingLive(true);
 
