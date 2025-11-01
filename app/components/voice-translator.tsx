@@ -49,7 +49,6 @@ const INPUT_LANGUAGE_OPTIONS = [
   { value: "zh-CN", label: "Chinese" },
 ];
 
-
 export default function VoiceTranslator({
   targetLanguage,
 }: {
@@ -63,13 +62,16 @@ export default function VoiceTranslator({
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [interimSegments, setInterimSegments] = useState<Transcript[]>([]);
   const [liveOriginal, setLiveOriginal] = useState("");
-  const [liveTranslation, setLiveTranslation] = useState("");
   const [isTranslatingLive, setIsTranslatingLive] = useState(false);
   const [fontSize, setFontSize] = useState(28);
   const [showOriginal, setShowOriginal] = useState(true);
   const [showTranslationHistory, setShowTranslationHistory] = useState(true);
   const [displayedNarrative, setDisplayedNarrative] = useState("");
   const [pendingQueue, setPendingQueue] = useState<PendingChunk[]>([]);
+  const [isFloatingWindow, setIsFloatingWindow] = useState(false);
+  const [floatingPosition, setFloatingPosition] = useState<{ x: number; y: number }>({ x: 32, y: 32 });
+  const [isDragging, setIsDragging] = useState(false);
+  const floatingRef = useRef<HTMLDivElement | null>(null);
   const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveOriginalRef = useRef<string>("");
   const lastInterimTextRef = useRef<string>("");
@@ -79,6 +81,54 @@ export default function VoiceTranslator({
   const isTranslatingLiveRef = useRef(false);
   const narrativeLengthRef = useRef(0);
   const translationQueueRef = useRef<PendingChunk[]>([]);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  const latestSnapshotRef = useRef<{
+    liveOriginal: string;
+    liveTranslation: string;
+    isTranslating: boolean;
+    transcripts: Transcript[];
+    pendingQueue: PendingChunk[];
+    updatedAt: number;
+  } | null>(null);
+  const viewerWindowRef = useRef<Window | null>(null);
+  const [isExternalViewerSupported] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    return typeof BroadcastChannel !== "undefined";
+  });
+  const [isBroadcastReady, setIsBroadcastReady] = useState(false);
+
+  const clampPosition = useCallback((x: number, y: number) => {
+    if (typeof window === "undefined") {
+      return { x, y };
+    }
+    const maxX = Math.max(0, window.innerWidth - 420);
+    const maxY = Math.max(0, window.innerHeight - 280);
+    return {
+      x: Math.min(Math.max(x, 16), maxX),
+      y: Math.min(Math.max(y, 16), maxY),
+    };
+  }, []);
+
+  const handleFloatingPointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (!isDragging) return;
+      const next = clampPosition(
+        event.clientX - dragOffsetRef.current.x,
+        event.clientY - dragOffsetRef.current.y
+      );
+      setFloatingPosition(next);
+    },
+    [clampPosition, isDragging]
+  );
+
+  const handleFloatingPointerUp = useCallback(() => {
+    setIsDragging(false);
+    window.removeEventListener("pointermove", handleFloatingPointerMove);
+    window.removeEventListener("pointerup", handleFloatingPointerUp);
+  }, [handleFloatingPointerMove]);
   const originalHistory = useMemo(
     () => [...interimSegments, ...transcripts].sort((a, b) => b.createdAt - a.createdAt),
     [interimSegments, transcripts]
@@ -110,6 +160,25 @@ export default function VoiceTranslator({
   useEffect(() => {
     isTranslatingLiveRef.current = isTranslatingLive;
   }, [isTranslatingLive]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      if (!isFloatingWindow) return;
+      setFloatingPosition((prev) => {
+        const maxX = Math.max(0, window.innerWidth - 420);
+        const maxY = Math.max(0, window.innerHeight - 280);
+        return {
+          x: Math.min(Math.max(prev.x, 16), maxX),
+          y: Math.min(Math.max(prev.y, 16), maxY),
+        };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isFloatingWindow]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -183,6 +252,45 @@ export default function VoiceTranslator({
       });
     });
   }, [displayedNarrative]);
+
+  useEffect(() => {
+    if (!isExternalViewerSupported || typeof window === "undefined") {
+      setIsBroadcastReady(false);
+      return;
+    }
+    const channel = new BroadcastChannel("voice-translator");
+    broadcastChannelRef.current = channel;
+    setIsBroadcastReady(true);
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data?.type === "request_latest" && latestSnapshotRef.current) {
+        channel.postMessage({ type: "state", payload: latestSnapshotRef.current });
+      }
+    };
+
+    channel.addEventListener("message", handleMessage);
+
+    return () => {
+      channel.removeEventListener("message", handleMessage);
+      channel.close();
+      broadcastChannelRef.current = null;
+    };
+  }, [isExternalViewerSupported]);
+
+  useEffect(() => {
+    if (!broadcastChannelRef.current) return;
+    const snapshot = {
+      liveOriginal,
+      liveTranslation: liveNarrative,
+      isTranslating: isTranslatingLive,
+      transcripts,
+      pendingQueue,
+      updatedAt: Date.now(),
+    };
+    latestSnapshotRef.current = snapshot;
+    broadcastChannelRef.current.postMessage({ type: "state", payload: snapshot });
+  }, [isTranslatingLive, liveNarrative, liveOriginal, pendingQueue, transcripts]);
 
   const stopLiveInterval = useCallback(() => {
     if (liveIntervalRef.current) {
@@ -273,7 +381,6 @@ export default function VoiceTranslator({
       setError(null);
       if (nextItem.status === "final") {
         setLiveOriginal(nextItem.text);
-        setLiveTranslation(translated);
         processedPartialRef.current.clear();
         partialBufferRef.current = "";
         setTranscripts((current) => [
@@ -307,7 +414,6 @@ export default function VoiceTranslator({
       };
       if (nextItem.status === "final") {
         setLiveOriginal(nextItem.text);
-        setLiveTranslation("(translation unavailable)");
       }
       setTranscripts((current) => [entry, ...current]);
       setError(
@@ -366,7 +472,6 @@ export default function VoiceTranslator({
       stopLiveInterval();
       if (!keepDisplay) {
         setLiveOriginal("");
-        setLiveTranslation("");
       }
       isTranslatingLiveRef.current = false;
       setIsTranslatingLive(false);
@@ -461,6 +566,172 @@ export default function VoiceTranslator({
     },
     [enqueueTranslation]
   );
+
+  const handleFloatingPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isFloatingWindow) return;
+      const rect = floatingRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      dragOffsetRef.current = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      setIsDragging(true);
+      window.addEventListener("pointermove", handleFloatingPointerMove);
+      window.addEventListener("pointerup", handleFloatingPointerUp);
+    },
+    [handleFloatingPointerMove, handleFloatingPointerUp, isFloatingWindow]
+  );
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", handleFloatingPointerMove);
+      window.removeEventListener("pointerup", handleFloatingPointerUp);
+    };
+  }, [handleFloatingPointerMove, handleFloatingPointerUp]);
+
+  const renderTranslationPanel = useCallback(
+    (detached: boolean) => (
+      <section
+        className={`flex h-full w-full flex-col space-y-4 rounded-3xl border border-white/10 bg-slate-950/40 px-6 py-6 shadow-inner shadow-black/30 ${
+          detached ? "cursor-move" : ""
+        }`}
+      >
+        <header
+          className="flex items-center justify-between"
+          onPointerDown={detached ? handleFloatingPointerDown : undefined}
+        >
+          <div>
+            <h3 className="text-lg font-semibold text-white">คำแปลล่าสุด</h3>
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
+              Target: {targetLanguage.toUpperCase()}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (detached) {
+                setIsFloatingWindow(false);
+              } else {
+                setIsFloatingWindow(true);
+              }
+            }}
+            className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100 transition hover:border-white/40 hover:bg-white/20"
+          >
+            {detached ? "Dock window" : "Pop out"}
+          </button>
+        </header>
+        <div className="min-h-[200px] rounded-2xl border border-white/10 bg-slate-950/60 px-5 py-4 shadow-inner shadow-black/20">
+          {liveNarrative ? (
+            <p
+              className="font-semibold text-emerald-100 whitespace-pre-wrap"
+              style={{ fontSize: `${fontSize}px`, lineHeight: 1.35 }}
+            >
+              {liveNarrative}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">ระบบจะแปลและแสดงผลอัตโนมัติ</p>
+          )}
+        </div>
+        {pendingQueue.length > 0 ? (
+          <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+            <p className="uppercase tracking-[0.3em] text-amber-200/80">คิวรอแปล</p>
+            <ul className="mt-2 space-y-1 text-amber-100/90">
+              {pendingQueue.map((item) => (
+                <li key={item.id} className="truncate">
+                  {new Date(item.createdAt).toLocaleTimeString()} · {item.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-xs text-slate-300">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">แสดงพร้อมกัน</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-200">
+            {liveOriginal}
+          </p>
+          <hr className="my-3 border-white/10" />
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-200">
+            Translation
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-emerald-200">
+            {liveNarrative || ""}
+          </p>
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">ประวัติ (คำแปล)</p>
+            <button
+              type="button"
+              onClick={() => setShowTranslationHistory((value) => !value)}
+              className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:border-white/30 hover:bg-white/15"
+            >
+              {showTranslationHistory ? "ซ่อน" : "แสดง"}
+            </button>
+          </div>
+          {showTranslationHistory ? (
+            translationHistory.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                เมื่อมีการแปลแล้ว ข้อความจะปรากฏที่นี่ตามลำดับเวลา
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {translationHistory.map((item) => (
+                  <li
+                    key={item.id}
+                    className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+                  >
+                    <div className="flex items-center justify-between text-xs text-emerald-200/80">
+                      <span>{item.timestamp}</span>
+                      <span>
+                        {item.sourceLanguage.toUpperCase()}-&gt;{targetLanguage.toUpperCase()}
+                      </span>
+                    </div>
+                    <p
+                      className="mt-2 font-semibold"
+                      style={{ fontSize: `${Math.max(fontSize - 6, 16)}px`, lineHeight: 1.35 }}
+                    >
+                      {item.translated}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <p className="text-xs text-slate-500">ประวัติคำแปลถูกซ่อนอยู่</p>
+          )}
+        </div>
+      </section>
+    ),
+    [
+      fontSize,
+      handleFloatingPointerDown,
+      liveNarrative,
+      liveOriginal,
+      pendingQueue,
+      setShowTranslationHistory,
+      showTranslationHistory,
+      targetLanguage,
+      translationHistory,
+    ]
+  );
+
+  const openExternalViewer = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const viewerUrl = new URL("/voice/viewer", window.location.origin);
+    const popup = window.open(
+      viewerUrl.toString(),
+      "voice-translator-viewer",
+      "width=520,height=720,resizable=yes,scrollbars=yes"
+    );
+    if (!popup) {
+      setError("เบราว์เซอร์ปิดกั้นหน้าต่างป๊อปอัป กรุณาอนุญาตแล้วลองใหม่");
+      return;
+    }
+    viewerWindowRef.current = popup;
+    popup.focus();
+    setError(null);
+  }, []);
 
   const startListening = useCallback(() => {
     setError(null);
@@ -598,6 +869,21 @@ export default function VoiceTranslator({
           </div>
 
           <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={openExternalViewer}
+              disabled={!isExternalViewerSupported || !isBroadcastReady}
+              title={
+                !isExternalViewerSupported
+                  ? "เบราว์เซอร์นี้ไม่รองรับ BroadcastChannel จึงเปิดหน้าต่างแยกไม่ได้"
+                  : !isBroadcastReady
+                    ? "กำลังเตรียมข้อมูลสำหรับหน้าต่างใหม่ โปรดลองอีกครั้ง"
+                    : "เปิดหน้าต่างอิสระสำหรับโชว์คำแปล"
+              }
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-sky-500/20 px-4 py-2 text-xs font-semibold text-sky-100 transition hover:border-white/40 hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400"
+            >
+              🪟 เปิดหน้าต่างอิสระ
+            </button>
             {isListening ? (
               <button
                 type="button"
@@ -697,106 +983,30 @@ export default function VoiceTranslator({
           </div>
         ) : null}
 
-        <div
-          className={`flex-1 min-w-[320px] ${showOriginal ? "" : "mx-auto w-full"}`}
-          style={{
-            resize: "both",
-            overflow: "auto",
-            minWidth: "320px",
-            minHeight: "360px",
-            maxWidth: "100%",
-          }}
-        >
-          <section className="flex h-full w-full flex-col space-y-4 rounded-3xl border border-white/10 bg-slate-950/40 px-6 py-6 shadow-inner shadow-black/30">
-            <header className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">คำแปลล่าสุด</h3>
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                Target: {targetLanguage.toUpperCase()}
-              </span>
-            </header>
-            <div className="min-h-[200px] rounded-2xl border border-white/10 bg-slate-950/60 px-5 py-4 shadow-inner shadow-black/20">
-              {liveNarrative ? (
-                <p
-                  className="font-semibold text-emerald-100 whitespace-pre-wrap"
-                  style={{ fontSize: `${fontSize}px`, lineHeight: 1.35 }}
-                >
-                  {liveNarrative}
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500">ระบบจะแปลและแสดงผลอัตโนมัติ</p>
-              )}
-            </div>
-            {pendingQueue.length > 0 ? (
-              <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
-                <p className="uppercase tracking-[0.3em] text-amber-200/80">คิวรอแปล</p>
-                <ul className="mt-2 space-y-1 text-amber-100/90">
-                  {pendingQueue.map((item) => (
-                    <li key={item.id} className="truncate">
-                      {new Date(item.createdAt).toLocaleTimeString()} · {item.text}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-xs text-slate-300">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">แสดงพร้อมกัน</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-200">
-                {liveOriginal}
-              </p>
-              <hr className="my-3 border-white/10" />
-              <p className="text-xs uppercase tracking-[0.3em] text-emerald-200">
-                Translation
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-emerald-200">
-                {liveNarrative || liveTranslation || ""}
-              </p>
-            </div>
-          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">ประวัติ (คำแปล)</p>
-              <button
-                type="button"
-                onClick={() => setShowTranslationHistory((value) => !value)}
-                className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:border-white/30 hover:bg-white/15"
-              >
-                {showTranslationHistory ? "ซ่อน" : "แสดง"}
-              </button>
-            </div>
-            {showTranslationHistory ? (
-              translationHistory.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  เมื่อมีการแปลแล้ว ข้อความจะปรากฏที่นี่ตามลำดับเวลา
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {translationHistory.map((item) => (
-                    <li
-                      key={item.id}
-                      className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
-                    >
-                      <div className="flex items-center justify-between text-xs text-emerald-200/80">
-                        <span>{item.timestamp}</span>
-                        <span>
-                          {item.sourceLanguage.toUpperCase()}-&gt;{targetLanguage.toUpperCase()}
-                        </span>
-                      </div>
-                      <p
-                        className="mt-2 font-semibold"
-                        style={{ fontSize: `${Math.max(fontSize - 6, 16)}px`, lineHeight: 1.35 }}
-                      >
-                        {item.translated}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )
-            ) : (
-              <p className="text-xs text-slate-500">ประวัติคำแปลถูกซ่อนอยู่</p>
-            )}
+        {!isFloatingWindow ? (
+          <div
+            className={`flex-1 min-w-[320px] ${showOriginal ? "" : "mx-auto w-full"}`}
+            style={{
+              resize: "both",
+              overflow: "auto",
+              minWidth: "320px",
+              minHeight: "360px",
+              maxWidth: "100%",
+            }}
+          >
+            {renderTranslationPanel(false)}
           </div>
-          </section>
-        </div>
+        ) : null}
       </div>
+      {isFloatingWindow ? (
+        <div
+          ref={floatingRef}
+          className="fixed z-50 w-full max-w-xl drop-shadow-2xl"
+          style={{ top: floatingPosition.y, left: floatingPosition.x }}
+        >
+          {renderTranslationPanel(true)}
+        </div>
+      ) : null}
     </div>
   );
 }
