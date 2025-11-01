@@ -93,44 +93,42 @@ export default function RoomSidebar({
     });
   };
   const baseClasses =
-    "w-72 flex flex-col border-r border-white/10 bg-black/40 px-6 py-8 shadow-xl shadow-black/40 backdrop-blur-xl";
+    "w-72 flex h-full flex-col border-r border-white/10 bg-black/40 px-6 py-8 shadow-xl shadow-black/40 backdrop-blur-xl";
   const visibilityClasses = className ?? "hidden lg:flex";
 
   return (
     <aside className={`${visibilityClasses} ${baseClasses}`}>
-      <div>
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Profile</p>
-        <h2 className="mt-2 text-xl font-semibold text-white">{profile.name}</h2>
-        <p className="text-xs text-slate-400">
-          Preferred language: {languageLabel(profile.language)}
-        </p>
-      </div>
+      <div className="flex-1 space-y-8 overflow-y-auto pr-1">
+        <div>
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Profile</p>
+          <h2 className="mt-2 text-xl font-semibold text-white">{profile.name}</h2>
+          <p className="text-xs text-slate-400">
+            Preferred language: {languageLabel(profile.language)}
+          </p>
+        </div>
 
-      {analytics ? (
-        <div className="mt-8 space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Metrics</p>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-xs text-slate-300">
-            <div className="flex items-center justify-between">
-              <span>Messages</span>
-              <span className="font-semibold text-white">{analytics.messageCount.toLocaleString()}</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between">
-              <span>Cache hit</span>
-              <span className="font-semibold text-emerald-300">{Math.round(analytics.cacheHitRate * 100)}%</span>
-            </div>
-            <div className="mt-1 flex items-center justify-between">
-              <span>P50 latency</span>
-              <span className="font-semibold">{analytics.liveLatencyP50.toFixed(0)} ms</span>
+        {analytics ? (
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Metrics</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-xs text-slate-300">
+              <div className="flex items-center justify-between">
+                <span>Messages</span>
+                <span className="font-semibold text-white">{analytics.messageCount.toLocaleString()}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span>Cache hit</span>
+                <span className="font-semibold text-emerald-300">{Math.round(analytics.cacheHitRate * 100)}%</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span>P50 latency</span>
+                <span className="font-semibold">{analytics.liveLatencyP50.toFixed(0)} ms</span>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="mt-8 flex-1 space-y-2 overflow-auto">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Rooms
-          </p>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Rooms</p>
           <Link
             href="/rooms/new"
             className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/15"
@@ -190,9 +188,7 @@ export default function RoomSidebar({
         </div>
 
         <div className="mt-6 space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Direct messages
-          </p>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Direct messages</p>
           <Link
             href="/direct"
             className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/15"
@@ -232,63 +228,87 @@ export default function RoomSidebar({
             )}
           </nav>
         </div>
-      </div>
 
-      <div className="mt-6 space-y-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-          Account
-        </p>
-        <Link
-          href="/credits"
-          className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-            activeSlug === "credits"
-              ? "border-sky-400/60 bg-sky-500/20 text-white"
-              : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
-          }`}
-        >
-          Credits & billing
-        </Link>
-      </div>
-
-      {(isAdmin || canAccessManage) ? (
         <div className="mt-6 space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Insights
-          </p>
-          {isAdmin ? (
-            <Link
-              href="/rooms/pricing"
-              className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                activeSlug === "pricing"
-                  ? "border-emerald-400/60 bg-emerald-500/20 text-white"
-                  : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
-              }`}
-            >
-              Pricing dashboard
-            </Link>
-          ) : null}
-          {canAccessManage ? (
-            <Link
-              href="/rooms/manage"
-              className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                activeSlug === "manage"
-                  ? "border-emerald-400/60 bg-emerald-500/20 text-white"
-                  : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
-              }`}
-            >
-              Manage members
-            </Link>
-          ) : null}
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Account</p>
+          <Link
+            href="/dashboard"
+            className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              activeSlug === "dashboard"
+                ? "border-sky-400/60 bg-sky-500/20 text-white"
+                : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
+            }`}
+          >
+            Workspace dashboard
+          </Link>
+          <Link
+            href="/credits"
+            className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              activeSlug === "credits"
+                ? "border-sky-400/60 bg-sky-500/20 text-white"
+                : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
+            }`}
+          >
+            Credits & billing
+          </Link>
+          <Link
+            href="/voice"
+            className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              activeSlug === "voice"
+                ? "border-sky-400/60 bg-sky-500/20 text-white"
+                : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
+            }`}
+          >
+            Voice translator (PoC)
+          </Link>
         </div>
-      ) : null}
 
-      <Link
-        href="/settings"
-        className="mt-6 inline-flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-      >
-        <span>Settings</span>
-        <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Language</span>
-      </Link>
+        {(isAdmin || canAccessManage) ? (
+          <div className="mt-6 space-y-2">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Insights</p>
+            {isAdmin ? (
+              <Link
+                href="/rooms/pricing"
+                className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                  activeSlug === "pricing"
+                    ? "border-emerald-400/60 bg-emerald-500/20 text-white"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
+                }`}
+              >
+                Pricing dashboard
+              </Link>
+            ) : null}
+            {canAccessManage ? (
+              <Link
+                href="/rooms/manage"
+                className={`block rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                  activeSlug === "manage"
+                    ? "border-emerald-400/60 bg-emerald-500/20 text-white"
+                    : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30 hover:bg-white/10"
+                }`}
+              >
+                Manage members
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        <Link
+          href="/settings"
+          className="mt-6 inline-flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/10"
+        >
+          <span>Settings</span>
+          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Language</span>
+        </Link>
+
+        <a
+          href="mailto:ruttakorn78@me.com?subject=InterChat%20Bug%20Report"
+          className="mt-4 inline-flex w-full items-center justify-between rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:border-rose-400/60 hover:bg-rose-500/20"
+        >
+          <span>Need Help</span>
+          <span className="text-xs uppercase tracking-[0.3em] text-rose-200">Email</span>
+        </a>
+      </div>
 
       <button
         type="button"

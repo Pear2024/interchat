@@ -108,6 +108,59 @@ export async function POST(request: NextRequest) {
   }
 
   switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as Record<string, unknown>;
+      const metadata = (session["metadata"] ?? {}) as Record<string, unknown>;
+      const userId =
+        typeof metadata.user_id === "string" ? metadata.user_id : null;
+      const referenceId =
+        typeof session["id"] === "string" ? session["id"] : event.id;
+
+      const { pkg } = resolvePackageFromMetadata(metadata);
+      const explicitCredits = Number(metadata.credits ?? 0);
+      const creditsToAdd =
+        explicitCredits > 0
+          ? explicitCredits
+          : pkg?.credits && pkg.credits > 0
+          ? pkg.credits
+          : 0;
+
+      if (!userId || creditsToAdd <= 0) {
+        console.warn(
+          "Unable to process checkout session; missing user or credits",
+          event.id
+        );
+        break;
+      }
+
+      try {
+        const serviceClient = getServiceSupabaseClient();
+        await ensureCreditBalance(userId, 0, serviceClient);
+
+        const { data: existingTxn } = await serviceClient
+          .from("user_credit_transactions")
+          .select("id")
+          .eq("reference_id", referenceId)
+          .maybeSingle();
+
+        if (!existingTxn) {
+          await addCredits(
+            userId,
+            creditsToAdd,
+            "purchase",
+            pkg ? `${pkg.name} checkout` : "Checkout credits",
+            referenceId,
+            serviceClient
+          );
+        }
+      } catch (error) {
+        console.error("Failed to credit checkout session", error);
+        return new Response("Failed to credit checkout", { status: 500 });
+      }
+
+      break;
+    }
+
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Record<string, unknown>;
       const billingReason = invoice["billing_reason"];

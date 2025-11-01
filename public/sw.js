@@ -1,4 +1,4 @@
-const CACHE_NAME = "interchat-cache-v1";
+const CACHE_NAME = "interchat-cache-v2";
 const OFFLINE_URLS = ["/", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -32,6 +32,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(async () => {
+        const offlineMatch = await caches.match("/");
+        return offlineMatch || Response.error();
+      })
+    );
+    return;
+  }
+
+  if (!request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -40,6 +54,10 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(request)
         .then((response) => {
+          if (!response || !response.ok || response.type === "opaqueredirect") {
+            return response;
+          }
+
           const responseClone = response.clone();
           event.waitUntil(
             caches.open(CACHE_NAME).then((cache) => {

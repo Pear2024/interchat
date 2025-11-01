@@ -43,9 +43,11 @@ export default function DirectMessageNotifier({
 
   useEffect(() => {
     return () => {
-      Object.values(timeoutRegistry.current).forEach((timeoutId) => {
+      const registrySnapshot = timeoutRegistry.current;
+      Object.values(registrySnapshot).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
+      timeoutRegistry.current = {};
     };
   }, []);
 
@@ -68,8 +70,8 @@ export default function DirectMessageNotifier({
           table: "messages",
           filter,
         },
-        (payload: RealtimePostgresInsertPayload<MessageRow | {}>) => {
-          const newMessage = (payload.new ?? {}) as MessageRow;
+        (payload: RealtimePostgresInsertPayload<MessageRow>) => {
+          const newMessage = payload.new as MessageRow;
 
           if (!newMessage?.id || !newMessage.room_id) {
             return;

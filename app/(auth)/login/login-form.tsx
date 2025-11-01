@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 type LanguageOption = {
@@ -22,7 +21,6 @@ export default function LoginForm({
   languages,
   initialError = null,
 }: LoginFormProps) {
-  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [error, setError] = useState<string | null>(initialError);

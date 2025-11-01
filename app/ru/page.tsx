@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-export default function Home() {
+export default function HomeRussian() {
   const languages = [
-    { href: "/", label: "ไทย", active: true },
+    { href: "/", label: "ไทย", active: false },
     { href: "/en", label: "English", active: false },
     { href: "/ja", label: "日本語", active: false },
     { href: "/es", label: "Español", active: false },
     { href: "/zh", label: "中文", active: false },
-    { href: "/ru", label: "Русский", active: false },
+    { href: "/ru", label: "Русский", active: true },
   ];
 
   return (
@@ -32,29 +32,27 @@ export default function Home() {
           InterChat Workspace
         </p>
         <h1 className="mt-6 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-          ศูนย์กลางการสื่อสารหลายภาษาสำหรับทีมสากล
+          Центр многоязычной коммуникации для международных команд
         </h1>
         <p className="mt-6 max-w-2xl text-base text-slate-300 sm:text-lg">
-          InterChat ช่วยให้ทีมจากทั่วโลกทำงานร่วมกันได้ราบรื่น
-          ด้วยการแปลแบบเรียลไทม์และประสบการณ์สนทนาที่เข้าใจง่าย
-          ไม่ว่าคู่สนทนาจะใช้ภาษาไหนก็เชื่อมต่อกันได้ในทันที
+          InterChat помогает распределённым командам оставаться на одной волне благодаря мгновенному переводу и удобному интерфейсу. Общайтесь свободно, независимо от того, на каком языке говорит собеседник.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/rooms"
             className="rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition hover:scale-[1.02]"
           >
-            เข้าโปรแกรม InterChat
+            Открыть InterChat
           </Link>
           <Link
             href="/rooms"
             className="rounded-full border border-white/20 px-8 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
           >
-            เข้าสู่ระบบ / สมัครสมาชิก
+            Войти / Создать аккаунт
           </Link>
         </div>
         <p className="mt-6 text-xs uppercase tracking-[0.35em] text-slate-500">
-          สนับสนุนทีมของคุณให้สื่อสารได้ทุกภาษา
+          Дайте каждому участнику возможность говорить на родном языке
         </p>
       </section>
 
@@ -62,19 +60,19 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-3">
           {[
             {
-              title: "สนทนาแบบเรียลไทม์",
+              title: "Переговоры в реальном времени",
               description:
-                "พูดคุยร่วมกันได้พร้อมกันหลายภาษา ระบบแปลอัตโนมัติช่วยให้ทีมเข้าใจตรงกันเสมอ",
+                "Работайте сразу на нескольких языках, а нейронный перевод сохранит контекст и точность.",
             },
             {
-              title: "จัดการห้องอย่างยืดหยุ่น",
+              title: "Гибкое управление комнатами",
               description:
-                "สร้างห้องสำหรับโปรเจ็กต์ ทีม หรือคู่ค้า พร้อมกำหนดสิทธิ์และสถานะเปิด/ปิดได้เอง",
+                "Создавайте комнаты для проектов, клиентов и внутренних групп, настраивайте доступ и статусы.",
             },
             {
-              title: "เก็บประวัติการแปล",
+              title: "История переводов",
               description:
-                "กลับมาดูบทสนทนาและการแปลย้อนหลังได้ ช่วยติดตามความคืบหน้าของงานได้ไม่ตกหล่น",
+                "Возвращайтесь к прошлым беседам и переводу в любой момент, чтобы ничего не потерять при передаче задач.",
             },
           ].map((feature) => (
             <article
@@ -91,24 +89,27 @@ export default function Home() {
       <section className="mx-auto w-full max-w-6xl px-6 pb-20">
         <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-indigo-900/40 p-8 shadow-[0_30px_80px_-40px_rgba(21,33,66,0.9)] backdrop-blur-xl">
           <p className="text-xs uppercase tracking-[0.35em] text-indigo-200/80">
-            เริ่มใช้งานง่ายมาก
+            Начните всего за несколько шагов
           </p>
           <h2 className="mt-4 text-2xl font-semibold text-white">
-            3 ขั้นตอนสู่การสื่อสารไร้ขอบเขต
+            3 шага к эффективному международному взаимодействию
           </h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             {[
               {
-                title: "สมัครหรือเข้าสู่ระบบ",
-                description: "สร้างบัญชีใหม่หรือเข้าสู่ระบบ Supabase เพียงไม่กี่ขั้นตอน",
+                title: "Зарегистрируйтесь или войдите",
+                description:
+                  "Создайте аккаунт InterChat или авторизуйтесь через Supabase за считанные секунды.",
               },
               {
-                title: "สร้างห้องสนทนา",
-                description: "ตั้งชื่อห้อง เลือกสมาชิก และเริ่มต้นบทสนทนาทันที",
+                title: "Создайте комнату",
+                description:
+                  "Назовите пространство для команды, пригласите участников и выберите основные языки.",
               },
               {
-                title: "เริ่มร่วมมือกับทีม",
-                description: "พิมพ์หรือใส่เสียง ระบบจะแปลให้แบบอัตโนมัติในเสี้ยววินาที",
+                title: "Начните сотрудничество",
+                description:
+                  "Пишите или говорите свободно — InterChat мгновенно переведёт сообщения для всех.",
               },
             ].map((step, index) => (
               <div
@@ -128,17 +129,17 @@ export default function Home() {
               href="/rooms"
               className="rounded-full bg-white px-8 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100"
             >
-              เริ่มใช้ InterChat ตอนนี้
+              Начать работу в InterChat
             </Link>
             <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
-              พร้อมรองรับทุกอุตสาหกรรม
+              Подходит для любой отрасли
             </span>
           </div>
         </div>
       </section>
 
       <footer className="border-t border-white/10 bg-slate-950/60 py-10 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} InterChat. ออกแบบเพื่อการทำงานร่วมกันของทีมทั่วโลก.
+        © {new Date().getFullYear()} InterChat. Создан для объединения глобальных команд.
       </footer>
     </main>
   );

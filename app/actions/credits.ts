@@ -11,10 +11,19 @@ import {
 } from "@/lib/credits";
 
 function getSiteUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "http://localhost:3000"
-  );
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured && configured.trim().length > 0) {
+    return configured.replace(/\/$/, "");
+  }
+
+  const vercelEnv =
+    process.env.NEXT_PUBLIC_VERCEL_URL ?? process.env.VERCEL_URL ?? "";
+  if (vercelEnv) {
+    const normalized = vercelEnv.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    return `https://${normalized}`;
+  }
+
+  return "http://localhost:3000";
 }
 
 export async function listCreditPackages() {

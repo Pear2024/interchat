@@ -48,6 +48,7 @@ export default function LanguageSettingsForm({
       } else {
         setStatus("Preferred language updated.");
         updateClientCaches(selectedLanguage);
+        router.push("/rooms");
       }
     });
   };

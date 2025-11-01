@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-export default function Home() {
+export default function HomeJapanese() {
   const languages = [
-    { href: "/", label: "ไทย", active: true },
+    { href: "/", label: "ไทย", active: false },
     { href: "/en", label: "English", active: false },
-    { href: "/ja", label: "日本語", active: false },
+    { href: "/ja", label: "日本語", active: true },
     { href: "/es", label: "Español", active: false },
     { href: "/zh", label: "中文", active: false },
     { href: "/ru", label: "Русский", active: false },
@@ -32,29 +32,27 @@ export default function Home() {
           InterChat Workspace
         </p>
         <h1 className="mt-6 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-          ศูนย์กลางการสื่อสารหลายภาษาสำหรับทีมสากล
+          言語の壁を越えたグローバル・コラボレーション
         </h1>
         <p className="mt-6 max-w-2xl text-base text-slate-300 sm:text-lg">
-          InterChat ช่วยให้ทีมจากทั่วโลกทำงานร่วมกันได้ราบรื่น
-          ด้วยการแปลแบบเรียลไทม์และประสบการณ์สนทนาที่เข้าใจง่าย
-          ไม่ว่าคู่สนทนาจะใช้ภาษาไหนก็เชื่อมต่อกันได้ในทันที
+          InterChat は超高速のリアルタイム翻訳と使いやすいチャット体験で世界中のチームをつなぎます。相手がどの言語を使っていても、自然なコミュニケーションが可能です。
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/rooms"
             className="rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/40 transition hover:scale-[1.02]"
           >
-            เข้าโปรแกรม InterChat
+            InterChat を開く
           </Link>
           <Link
             href="/rooms"
             className="rounded-full border border-white/20 px-8 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
           >
-            เข้าสู่ระบบ / สมัครสมาชิก
+            ログイン / 新規登録
           </Link>
         </div>
         <p className="mt-6 text-xs uppercase tracking-[0.35em] text-slate-500">
-          สนับสนุนทีมของคุณให้สื่อสารได้ทุกภาษา
+          チーム全員が自分の言語で参加できます
         </p>
       </section>
 
@@ -62,19 +60,19 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-3">
           {[
             {
-              title: "สนทนาแบบเรียลไทม์",
+              title: "リアルタイム会話",
               description:
-                "พูดคุยร่วมกันได้พร้อมกันหลายภาษา ระบบแปลอัตโนมัติช่วยให้ทีมเข้าใจตรงกันเสมอ",
+                "複数言語を同時に翻訳。話者のコンテキストを維持したままスムーズに会話できます。",
             },
             {
-              title: "จัดการห้องอย่างยืดหยุ่น",
+              title: "柔軟なルーム管理",
               description:
-                "สร้างห้องสำหรับโปรเจ็กต์ ทีม หรือคู่ค้า พร้อมกำหนดสิทธิ์และสถานะเปิด/ปิดได้เอง",
+                "プロジェクトやパートナー向けにルームを作成し、アクセス権や公開・非公開を細かく設定できます。",
             },
             {
-              title: "เก็บประวัติการแปล",
+              title: "翻訳履歴の保存",
               description:
-                "กลับมาดูบทสนทนาและการแปลย้อนหลังได้ ช่วยติดตามความคืบหน้าของงานได้ไม่ตกหล่น",
+                "過去の会話や翻訳をいつでも確認でき、情報の抜け漏れを防ぎます。",
             },
           ].map((feature) => (
             <article
@@ -91,24 +89,24 @@ export default function Home() {
       <section className="mx-auto w-full max-w-6xl px-6 pb-20">
         <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-indigo-900/40 p-8 shadow-[0_30px_80px_-40px_rgba(21,33,66,0.9)] backdrop-blur-xl">
           <p className="text-xs uppercase tracking-[0.35em] text-indigo-200/80">
-            เริ่มใช้งานง่ายมาก
+            導入はとても簡単
           </p>
           <h2 className="mt-4 text-2xl font-semibold text-white">
-            3 ขั้นตอนสู่การสื่อสารไร้ขอบเขต
+            3 ステップでグローバル連携
           </h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             {[
               {
-                title: "สมัครหรือเข้าสู่ระบบ",
-                description: "สร้างบัญชีใหม่หรือเข้าสู่ระบบ Supabase เพียงไม่กี่ขั้นตอน",
+                title: "アカウント登録またはログイン",
+                description: "Supabase アカウントで数秒でサインインできます。",
               },
               {
-                title: "สร้างห้องสนทนา",
-                description: "ตั้งชื่อห้อง เลือกสมาชิก และเริ่มต้นบทสนทนาทันที",
+                title: "ルームを作成",
+                description: "ルーム名を設定し、メンバーを招待して言語を選択します。",
               },
               {
-                title: "เริ่มร่วมมือกับทีม",
-                description: "พิมพ์หรือใส่เสียง ระบบจะแปลให้แบบอัตโนมัติในเสี้ยววินาที",
+                title: "すぐにコラボレーション開始",
+                description: "自然に入力するだけで即座に翻訳され、全員が理解できます。",
               },
             ].map((step, index) => (
               <div
@@ -128,17 +126,17 @@ export default function Home() {
               href="/rooms"
               className="rounded-full bg-white px-8 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100"
             >
-              เริ่มใช้ InterChat ตอนนี้
+              いますぐ InterChat を始める
             </Link>
             <span className="text-xs uppercase tracking-[0.3em] text-slate-500">
-              พร้อมรองรับทุกอุตสาหกรรม
+              あらゆる業界で活躍
             </span>
           </div>
         </div>
       </section>
 
       <footer className="border-t border-white/10 bg-slate-950/60 py-10 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} InterChat. ออกแบบเพื่อการทำงานร่วมกันของทีมทั่วโลก.
+        © {new Date().getFullYear()} InterChat. 世界中のチームのために設計されています。
       </footer>
     </main>
   );

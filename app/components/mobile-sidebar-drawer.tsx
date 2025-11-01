@@ -48,7 +48,7 @@ export default function MobileSidebarDrawer({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <div className="relative z-50 h-full w-72 max-w-full bg-black/85 shadow-2xl shadow-black/60">
+          <div className="relative z-50 flex h-full w-72 max-w-full bg-black/85 shadow-2xl shadow-black/60">
             <RoomSidebar
               rooms={rooms}
               profile={profile}

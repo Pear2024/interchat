@@ -1,22 +1,11 @@
 'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
+import { useState, useTransition } from "react";
 import type { CreditPackage } from "@/lib/credits";
 import { createCheckoutSession } from "@/app/actions/credits";
 
-type CreditTransaction = {
-  id: string;
-  amount: number;
-  transaction_type: string;
-  description: string | null;
-  reference_id: string | null;
-  created_at: string;
-};
-
 type CreditsDashboardProps = {
   balance: number;
-  transactions: CreditTransaction[];
   packages: CreditPackage[];
   userEmail?: string;
 };
@@ -27,27 +16,14 @@ function formatNumber(value: number) {
   }).format(value);
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
 export default function CreditsDashboard({
   balance,
-  transactions,
   packages,
   userEmail,
 }: CreditsDashboardProps) {
   const [isPending, startTransition] = useTransition();
   const [pendingPackageId, setPendingPackageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const sortedTransactions = useMemo(
-    () => [...transactions].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
-    [transactions]
-  );
-
   const handlePurchase = (packageId: string) => {
     setError(null);
     setPendingPackageId(packageId);
@@ -71,6 +47,8 @@ export default function CreditsDashboard({
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,_#1b233a,_#090b12_55%)] px-6 py-10 text-slate-50">
       <div className="flex w-full max-w-6xl flex-col gap-8">
         <header className="rounded-[32px] border border-white/10 bg-white/5 px-8 py-8 shadow-[0_40px_80px_-30px_rgba(15,23,42,0.9)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
           <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
             Account Credits
           </p>
@@ -81,6 +59,23 @@ export default function CreditsDashboard({
             Credits are required for each machine translation call. One credit≈1,000
             tokens. Purchase a package below when your balance runs low.
           </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    window.location.href = "/rooms";
+                  }
+                }
+              }}
+              className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/40 hover:bg-white/20"
+            >
+              ← Back
+            </button>
+          </div>
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-4 text-center shadow-inner shadow-black/20">
               <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
@@ -137,63 +132,6 @@ export default function CreditsDashboard({
               </button>
             </article>
           ))}
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/30 backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">
-              Recent credit activity
-            </h2>
-            <Link
-              href="/rooms"
-              className="text-sm text-violet-200 transition hover:text-white"
-            >
-              Back to rooms
-            </Link>
-          </div>
-          <div className="mt-4 space-y-3 text-sm">
-            {sortedTransactions.length === 0 ? (
-              <p className="text-slate-400">
-                No transactions yet. Credits will appear here after purchases or
-                translation usage.
-              </p>
-            ) : (
-              sortedTransactions.map((txn) => {
-                const isCredit = txn.amount > 0;
-                const amountLabel = `${isCredit ? "+" : ""}${formatNumber(
-                  txn.amount
-                )} credits`;
-                return (
-                  <div
-                    key={txn.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-semibold text-white">{amountLabel}</p>
-                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                        {txn.transaction_type}
-                      </p>
-                      {txn.description ? (
-                        <p className="mt-1 text-xs text-slate-400">
-                          {txn.description}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400">
-                        {formatDate(txn.created_at)}
-                      </p>
-                      {txn.reference_id ? (
-                        <p className="text-xs text-slate-500">
-                          Ref: {txn.reference_id}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
         </section>
 
         {error ? (

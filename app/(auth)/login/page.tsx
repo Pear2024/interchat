@@ -16,7 +16,7 @@ export default async function LoginPage({
     !user.is_anonymous &&
     user.user_metadata?.password_configured === true
   ) {
-    redirect("/");
+    redirect("/rooms");
   }
 
   const { data: languageRows } = await supabase

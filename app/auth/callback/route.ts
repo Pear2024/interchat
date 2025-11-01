@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const { data: userResult } = await supabase.auth.getUser();
   const destination =
     userResult.user?.user_metadata?.password_configured === true
-      ? "/"
+      ? "/rooms"
       : "/auth/setup";
 
   return NextResponse.redirect(new URL(destination, requestUrl.origin));

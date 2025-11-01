@@ -1,4 +1,6 @@
 import { getServiceSupabaseClient } from "@/lib/supabaseServer";
+import { TOKENS_PER_CREDIT } from "@/lib/pricing";
+import type { TranslationUsage } from "@/lib/translation";
 
 export type CreditPackage = {
   id: string;
@@ -122,4 +124,20 @@ export async function addCredits(
     txn_description: description ?? null,
     reference: referenceId ?? null,
   });
+}
+
+export function calculateCreditsFromUsage(usage: TranslationUsage | null) {
+  if (!usage) {
+    return 1;
+  }
+
+  const totalTokens =
+    usage.totalTokens ??
+    ((usage.inputTokens ?? 0) + (usage.outputTokens ?? 0));
+
+  if (!totalTokens || totalTokens <= 0) {
+    return 1;
+  }
+
+  return Math.max(1, Math.ceil(totalTokens / TOKENS_PER_CREDIT));
 }

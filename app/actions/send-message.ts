@@ -12,8 +12,7 @@ import {
 } from "@/lib/translation";
 import { resolveLanguageCode } from "@/lib/languageCodes";
 import { DEMO_ROOM_ID } from "@/lib/chatTypes";
-import { TOKENS_PER_CREDIT } from "@/lib/pricing";
-import { ensureCreditBalance, spendCredits } from "@/lib/credits";
+import { ensureCreditBalance, spendCredits, calculateCreditsFromUsage } from "@/lib/credits";
 
 type SendMessagePayload = {
   content: string;
@@ -21,6 +20,14 @@ type SendMessagePayload = {
   targetLanguage?: string;
   roomId?: string;
   authorId?: string;
+  attachments?: AttachmentPayload[];
+};
+
+type AttachmentPayload = {
+  url: string;
+  name?: string;
+  contentType?: string;
+  size?: number;
 };
 
 const DEFAULT_TARGET_LANGUAGE = "en";
@@ -32,29 +39,39 @@ function normalizeContent(content: string) {
   return content.trim();
 }
 
-function calculateCreditsFromUsage(usage: TranslationUsage | null) {
-  if (!usage) {
-    return 1;
-  }
-
-  const totalTokens =
-    usage.totalTokens ??
-    ((usage.inputTokens ?? 0) + (usage.outputTokens ?? 0));
-
-  if (!totalTokens || totalTokens <= 0) {
-    return 1;
-  }
-
-  return Math.max(1, Math.ceil(totalTokens / TOKENS_PER_CREDIT));
-}
-
 export async function sendMessage(payload: SendMessagePayload) {
-  if (!payload.content) {
+  const attachments = Array.isArray(payload.attachments)
+    ? payload.attachments
+        .map((item) => ({
+          url: typeof item.url === "string" ? item.url : "",
+          name:
+            typeof item.name === "string"
+              ? item.name
+              : typeof item.url === "string"
+                ? item.url.split("/").slice(-1)[0]
+                : "attachment",
+          contentType:
+            typeof item.contentType === "string" ? item.contentType : null,
+          size:
+            typeof item.size === "number"
+              ? item.size
+              : typeof item.size === "string"
+                ? Number.parseInt(item.size, 10) || null
+                : null,
+        }))
+        .filter((item) => item.url)
+    : [];
+
+  if (attachments.length > 3) {
+    return { error: "Messages may include up to 3 attachments." };
+  }
+
+  if (!payload.content && attachments.length === 0) {
     return { error: "Message content is required." };
   }
 
-  const normalizedContent = normalizeContent(payload.content);
-  if (!normalizedContent) {
+  const normalizedContent = normalizeContent(payload.content ?? "");
+  if (!normalizedContent && attachments.length === 0) {
     return { error: "Please enter a message before sending." };
   }
 
@@ -272,6 +289,18 @@ export async function sendMessage(payload: SendMessagePayload) {
     }
   }
 
+  const messageMetadata =
+    attachments.length > 0
+      ? {
+          attachments: attachments.map((item) => ({
+            url: item.url,
+            name: item.name,
+            type: item.contentType,
+            size: item.size,
+          })),
+        }
+      : {};
+
   const { data: insertedMessage, error: messageError } = await supabase
     .from("messages")
     .insert({
@@ -280,6 +309,7 @@ export async function sendMessage(payload: SendMessagePayload) {
       content: normalizedContent,
       original_language: originalLanguage,
       detected_language: originalLanguage,
+      metadata: messageMetadata,
     })
     .select("id")
     .single();

@@ -16,6 +16,14 @@ export type ChatMessage = {
     language: string;
   };
   timestamp: string;
+  attachments: MessageAttachment[];
+};
+
+export type MessageAttachment = {
+  url: string;
+  name: string;
+  type: string | null;
+  size: number | null;
 };
 
 export type SupabaseMessageRow = {
@@ -26,6 +34,7 @@ export type SupabaseMessageRow = {
   created_at: string | null;
   original_language: string | null;
   detected_language: string | null;
+  metadata: Record<string, unknown> | null;
   profiles:
     | { display_name: string | null; preferred_language?: string | null }
     | Array<{ display_name: string | null; preferred_language?: string | null }>
@@ -126,6 +135,35 @@ export function mapRowsToChatMessages(
       fallbackTranslation?.target_language ??
       viewerLanguage;
 
+    const metadata = row.metadata ?? {};
+    const attachments = Array.isArray(
+      (metadata as { attachments?: unknown }).attachments
+    )
+      ? ((metadata as { attachments?: unknown }).attachments as Array<{
+          url?: unknown;
+          name?: unknown;
+          type?: unknown;
+          size?: unknown;
+        }>)
+          .map((item) => ({
+            url: typeof item.url === "string" ? item.url : "",
+            name:
+              typeof item.name === "string"
+                ? item.name
+                : typeof item.url === "string"
+                  ? item.url.split("/").slice(-1)[0]
+                  : "attachment",
+            type: typeof item.type === "string" ? item.type : null,
+            size:
+              typeof item.size === "number"
+                ? item.size
+                : typeof item.size === "string"
+                  ? Number.parseInt(item.size, 10) || null
+                  : null,
+          }))
+          .filter((item) => Boolean(item.url))
+      : [];
+
     return {
       id: row.id ?? `${index}`,
       author: {
@@ -144,6 +182,7 @@ export function mapRowsToChatMessages(
         language: translatedLanguage ?? viewerLanguage,
       },
       timestamp: formatTimestamp(row.created_at, locale),
+      attachments,
     };
   });
 }

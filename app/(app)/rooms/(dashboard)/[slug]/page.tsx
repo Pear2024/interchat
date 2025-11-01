@@ -45,6 +45,7 @@ const sampleMessages: ChatMessage[] = [
       language: "en",
     },
     timestamp: "09:41",
+    attachments: [],
   },
   {
     id: "2",
@@ -64,6 +65,7 @@ const sampleMessages: ChatMessage[] = [
       language: "en",
     },
     timestamp: "09:41",
+    attachments: [],
   },
   {
     id: "3",
@@ -83,6 +85,7 @@ const sampleMessages: ChatMessage[] = [
       language: "en",
     },
     timestamp: "09:42",
+    attachments: [],
   },
   {
     id: "4",
@@ -102,6 +105,7 @@ const sampleMessages: ChatMessage[] = [
       language: "en",
     },
     timestamp: "09:42",
+    attachments: [],
   },
 ];
 
@@ -270,6 +274,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
           created_at,
           original_language,
           detected_language,
+          metadata,
           profiles:author_id (
             display_name,
             preferred_language
@@ -346,6 +351,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
             roomId={room.id}
             isLocked={isLocked}
             canControlLock={canControlLock}
+            isAdmin={isAdmin}
           />
         </div>
         <div className="flex flex-1 min-h-0 flex-col rounded-[28px] border border-white/10 bg-slate-950/50 shadow-[0_20px_60px_-25px_rgba(12,20,38,0.9)] backdrop-blur-xl lg:rounded-3xl lg:border-white/5 lg:bg-slate-950/40">
@@ -442,12 +448,14 @@ function Header({
   roomId,
   isLocked,
   canControlLock,
+  isAdmin,
 }: {
   status: SupabaseStatus;
   roomName: string;
   roomId: string;
   isLocked: boolean;
   canControlLock: boolean;
+  isAdmin: boolean;
 }) {
   const badge =
     status.state === "ready"
@@ -484,14 +492,16 @@ function Header({
           </span>
           {status.title}
         </span>
-        <a
-          href="https://supabase.com/dashboard"
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/20"
-        >
-          Open dashboard
-        </a>
+        {isAdmin ? (
+          <a
+            href="https://supabase.com/dashboard"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/20"
+          >
+            Open dashboard
+          </a>
+        ) : null}
         {canControlLock ? (
           <LockToggleButton roomId={roomId} isLocked={isLocked} />
         ) : null}
