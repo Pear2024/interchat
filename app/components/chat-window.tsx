@@ -219,9 +219,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={`flex items-start gap-3 sm:gap-4 ${alignment}`}>
       <Avatar initials={author.initials} gradient={author.accent} />
-      <div className="flex max-w-[82vw] flex-col gap-3 sm:max-w-2xl">
+      <div
+        className={`flex max-w-[82vw] flex-col gap-3 sm:max-w-2xl ${
+          author.isSelf ? "items-end" : "items-start"
+        }`}
+      >
         <div
-          className={`relative w-full rounded-[24px] px-4 py-4 shadow-xl shadow-black/20 backdrop-blur sm:rounded-[26px] sm:px-6 sm:py-5 ${bubbleBg}`}
+          className={`relative inline-flex max-w-full flex-col rounded-[24px] px-4 py-4 shadow-xl shadow-black/20 backdrop-blur sm:rounded-[26px] sm:px-6 sm:py-5 ${bubbleBg} ${
+            author.isSelf ? "self-end" : "self-start"
+          }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-[0.35em] text-slate-500">
@@ -237,12 +243,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               ) : null}
             </span>
           </div>
-          <div className="mt-2 text-lg font-semibold leading-7 text-current">
+          <div className="mt-2 break-words text-lg font-semibold leading-7 text-current">
             {original.text}
           </div>
           {showTranslation ? (
             <div
-              className={`mt-3 rounded-2xl px-4 py-3 text-sm leading-relaxed ${translationBg}`}
+              className={`mt-3 break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${translationBg}`}
             >
               {translation.text}
             </div>
