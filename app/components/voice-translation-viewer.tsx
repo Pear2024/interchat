@@ -20,7 +20,6 @@ type ViewerTranscript = {
 };
 
 type ViewerSnapshot = {
-  liveOriginal: string;
   liveTranslation: string;
   isTranslating: boolean;
   transcripts: ViewerTranscript[];
@@ -131,19 +130,11 @@ export default function VoiceTranslationViewer() {
               </span>
             ) : null}
           </header>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">ต้นฉบับ</p>
-              <p className="mt-2 min-h-[120px] whitespace-pre-wrap text-lg font-semibold text-white">
-                {snapshot?.liveOriginal || "รอสัญญาณจากแท็บหลัก..."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-200">คำแปล</p>
-              <p className="mt-2 min-h-[120px] whitespace-pre-wrap text-lg font-semibold text-emerald-100">
-                {snapshot?.liveTranslation || "รอสัญญาณจากแท็บหลัก..."}
-              </p>
-            </div>
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-200">คำแปลสด</p>
+            <p className="mt-3 min-h-[160px] whitespace-pre-wrap text-xl font-semibold leading-relaxed text-emerald-100">
+              {snapshot?.liveTranslation || "รอสัญญาณคำแปลจากแท็บหลัก..."}
+            </p>
           </div>
         </section>
 
@@ -171,9 +162,6 @@ export default function VoiceTranslationViewer() {
                       {item.sourceLanguage.toUpperCase()} → {item.status.toUpperCase()}
                     </span>
                   </header>
-                  <p className="whitespace-pre-wrap text-[13px] font-semibold text-white">
-                    {item.original}
-                  </p>
                   <p className="whitespace-pre-wrap text-[13px] font-semibold text-emerald-100">
                     {item.translated}
                   </p>
