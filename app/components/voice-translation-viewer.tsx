@@ -56,7 +56,7 @@ export default function VoiceTranslationViewer() {
   const channelRef = useRef<BroadcastChannel | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const queueRef = useRef<ViewerTranscript[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<number | null>(null);
   const [currentLine, setCurrentLine] = useState<string>("");
   const [history, setHistory] = useState<HistorySegment[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
