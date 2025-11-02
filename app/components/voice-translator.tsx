@@ -36,7 +36,9 @@ type Transcript = {
   status: "interim" | "partial" | "final";
 };
 
-const PARTIAL_CHUNK_WORDS = 12;
+const PARTIAL_CHUNK_WORDS = 4;
+const INTERIM_FLUSH_DELAY_MS = 350;
+const MAX_PARALLEL_TRANSLATIONS = 3;
 
 const INPUT_LANGUAGE_OPTIONS = [
   { value: "th-TH", label: "Thai" },
@@ -77,10 +79,13 @@ export default function VoiceTranslator({
   const lastInterimTextRef = useRef<string>("");
   const partialBufferRef = useRef<string>("");
   const processedPartialRef = useRef<Set<string>>(new Set());
+  const interimFlushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayedNarrativeRef = useRef("");
   const isTranslatingLiveRef = useRef(false);
   const narrativeLengthRef = useRef(0);
   const translationQueueRef = useRef<PendingChunk[]>([]);
+  const activeTranslationsRef = useRef(0);
+  const scheduleTranslationsRef = useRef<(() => void) | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const latestSnapshotRef = useRef<{
@@ -352,83 +357,114 @@ export default function VoiceTranslator({
     [targetLanguage]
   );
 
-  const processQueue = useCallback(async () => {
-    if (isTranslatingLiveRef.current) return;
+  const syncTranslatingState = useCallback(() => {
+    const shouldBeActive = activeTranslationsRef.current > 0;
+    if (isTranslatingLiveRef.current !== shouldBeActive) {
+      isTranslatingLiveRef.current = shouldBeActive;
+      setIsTranslatingLive(shouldBeActive);
+    }
+  }, []);
 
-    const nextItem = translationQueueRef.current.shift();
-    if (!nextItem) {
+  const runTranslation = useCallback(
+    async (item: PendingChunk) => {
+      activeTranslationsRef.current += 1;
+      syncTranslatingState();
       updateQueueState();
+
+      let shouldPause = false;
+
+      try {
+        const result = await translateSegment(item.text);
+        const translated = result?.translation?.trim() || item.text;
+        const entry: Transcript = {
+          id: item.id,
+          original: item.text,
+          translated,
+          sourceLanguage: result?.detected ?? "unknown",
+          timestamp: new Date(item.createdAt).toLocaleTimeString(),
+          createdAt: item.createdAt,
+          status: item.status,
+        };
+
+        setError(null);
+        if (item.status === "final") {
+          setLiveOriginal(item.text);
+          processedPartialRef.current.clear();
+          partialBufferRef.current = "";
+          setTranscripts((current) => [
+            entry,
+            ...current.filter((record) => record.status !== "partial"),
+          ]);
+        } else {
+          setTranscripts((current) => [entry, ...current]);
+        }
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          translationQueueRef.current.unshift(item);
+          updateQueueState();
+          setError(error.message);
+          recognitionRef.current?.stop();
+          stopLiveInterval();
+          setIsListening(false);
+          shouldPause = true;
+        } else {
+          const entry: Transcript = {
+            id: item.id,
+            original: item.text,
+            translated: "(translation unavailable)",
+            sourceLanguage: "unknown",
+            timestamp: new Date(item.createdAt).toLocaleTimeString(),
+            createdAt: item.createdAt,
+            status: item.status,
+          };
+
+          if (item.status === "final") {
+            setLiveOriginal(item.text);
+          }
+
+          setTranscripts((current) => [entry, ...current]);
+          setError(
+            error instanceof Error ? error.message : "ไม่สามารถแปลได้"
+          );
+        }
+      } finally {
+        activeTranslationsRef.current = Math.max(0, activeTranslationsRef.current - 1);
+        syncTranslatingState();
+        updateQueueState();
+        if (!shouldPause) {
+          queueMicrotask(() => {
+            scheduleTranslationsRef.current?.();
+          });
+        }
+      }
+    },
+    [setIsListening, stopLiveInterval, syncTranslatingState, translateSegment, updateQueueState]
+  );
+
+  const scheduleTranslations = useCallback(() => {
+    if (activeTranslationsRef.current >= MAX_PARALLEL_TRANSLATIONS) {
       return;
     }
 
-    updateQueueState();
-    isTranslatingLiveRef.current = true;
-    setIsTranslatingLive(true);
-
-    try {
-      const result = await translateSegment(nextItem.text);
-      const translated = result?.translation?.trim() || nextItem.text;
-      const entry: Transcript = {
-        id: nextItem.id,
-        original: nextItem.text,
-        translated,
-        sourceLanguage: result?.detected ?? "unknown",
-        timestamp: new Date(nextItem.createdAt).toLocaleTimeString(),
-        createdAt: nextItem.createdAt,
-        status: nextItem.status,
-      };
-
-      setError(null);
-      if (nextItem.status === "final") {
-        setLiveOriginal(nextItem.text);
-        processedPartialRef.current.clear();
-        partialBufferRef.current = "";
-        setTranscripts((current) => [
-          entry,
-          ...current.filter((item) => item.status !== "partial"),
-        ]);
-      } else {
-        setTranscripts((current) => [entry, ...current]);
+    while (
+      activeTranslationsRef.current < MAX_PARALLEL_TRANSLATIONS &&
+      translationQueueRef.current.length > 0
+    ) {
+      const nextItem = translationQueueRef.current.shift();
+      if (!nextItem) {
+        break;
       }
-    } catch (error) {
-      if (error instanceof InsufficientCreditsError) {
-        translationQueueRef.current.unshift(nextItem);
-        updateQueueState();
-        setError(error.message);
-        recognitionRef.current?.stop();
-        stopLiveInterval();
-        setIsListening(false);
-        isTranslatingLiveRef.current = false;
-        setIsTranslatingLive(false);
-        return;
-      }
-
-      const entry: Transcript = {
-        id: nextItem.id,
-        original: nextItem.text,
-        translated: "(translation unavailable)",
-        sourceLanguage: "unknown",
-        timestamp: new Date(nextItem.createdAt).toLocaleTimeString(),
-        createdAt: nextItem.createdAt,
-        status: nextItem.status,
-      };
-      if (nextItem.status === "final") {
-        setLiveOriginal(nextItem.text);
-      }
-      setTranscripts((current) => [entry, ...current]);
-      setError(
-        error instanceof Error ? error.message : "ไม่สามารถแปลได้"
-      );
-    } finally {
-      isTranslatingLiveRef.current = false;
-      setIsTranslatingLive(false);
       updateQueueState();
+      void runTranslation(nextItem);
     }
+  }, [runTranslation, updateQueueState]);
 
-    if (translationQueueRef.current.length > 0) {
-      void processQueue();
-    }
-  }, [translateSegment, stopLiveInterval, updateQueueState]);
+  useEffect(() => {
+    scheduleTranslationsRef.current = scheduleTranslations;
+    return () => {
+      scheduleTranslationsRef.current = null;
+    };
+  }, [scheduleTranslations]);
 
   const enqueueTranslation = useCallback(
     (text: string, status: "final" | "partial" = "final") => {
@@ -446,11 +482,9 @@ export default function VoiceTranslator({
       translationQueueRef.current.push(item);
       updateQueueState();
 
-      if (!isTranslatingLiveRef.current) {
-        void processQueue();
-      }
+      scheduleTranslations();
     },
-    [processQueue, updateQueueState]
+    [scheduleTranslations, updateQueueState]
   );
 
   useEffect(() => {
@@ -473,6 +507,10 @@ export default function VoiceTranslator({
       if (!keepDisplay) {
         setLiveOriginal("");
       }
+      if (interimFlushTimeoutRef.current) {
+        clearTimeout(interimFlushTimeoutRef.current);
+        interimFlushTimeoutRef.current = null;
+      }
       isTranslatingLiveRef.current = false;
       setIsTranslatingLive(false);
       liveOriginalRef.current = "";
@@ -492,6 +530,17 @@ export default function VoiceTranslator({
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+
+      if (interimFlushTimeoutRef.current) {
+        clearTimeout(interimFlushTimeoutRef.current);
+        interimFlushTimeoutRef.current = null;
+      }
+
+      const leftover = partialBufferRef.current.trim();
+      if (leftover && !processedPartialRef.current.has(leftover)) {
+        processedPartialRef.current.add(leftover);
+        enqueueTranslation(leftover, "partial");
+      }
 
       setLiveOriginal(trimmed);
       setInterimSegments((current) =>
@@ -522,6 +571,10 @@ export default function VoiceTranslator({
         setInterimSegments([]);
         lastInterimTextRef.current = "";
         partialBufferRef.current = "";
+        if (interimFlushTimeoutRef.current) {
+          clearTimeout(interimFlushTimeoutRef.current);
+          interimFlushTimeoutRef.current = null;
+        }
         return;
       }
 
@@ -561,6 +614,21 @@ export default function VoiceTranslator({
           }
         }
         partialBufferRef.current = words.join(" ");
+
+        if (interimFlushTimeoutRef.current) {
+          clearTimeout(interimFlushTimeoutRef.current);
+        }
+        if (partialBufferRef.current) {
+          interimFlushTimeoutRef.current = setTimeout(() => {
+            const leftover = partialBufferRef.current.trim();
+            if (leftover && !processedPartialRef.current.has(leftover)) {
+              processedPartialRef.current.add(leftover);
+              enqueueTranslation(leftover, "partial");
+              partialBufferRef.current = "";
+            }
+            interimFlushTimeoutRef.current = null;
+          }, INTERIM_FLUSH_DELAY_MS);
+        }
       }
       lastInterimTextRef.current = trimmed;
     },
@@ -792,15 +860,19 @@ export default function VoiceTranslator({
     recognition.start();
     recognitionRef.current = recognition;
     setIsListening(true);
-    if (!isTranslatingLiveRef.current && translationQueueRef.current.length > 0) {
-      void processQueue();
+    if (translationQueueRef.current.length > 0) {
+      scheduleTranslations();
     }
-  }, [handleFinalTranscript, handleInterimTranscript, inputLanguage, processQueue, resetLivePreview]);
+  }, [handleFinalTranscript, handleInterimTranscript, inputLanguage, resetLivePreview, scheduleTranslations]);
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop();
       stopLiveInterval();
+      if (interimFlushTimeoutRef.current) {
+        clearTimeout(interimFlushTimeoutRef.current);
+        interimFlushTimeoutRef.current = null;
+      }
     };
   }, [stopLiveInterval]);
 
