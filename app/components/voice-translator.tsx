@@ -38,6 +38,7 @@ type Transcript = {
 
 const MAX_PARALLEL_TRANSLATIONS = 3;
 const RECORDING_TIMESLICE_MS = 4_000;
+const MIN_AUDIO_CHUNK_BYTES = 1_024;
 
 const INPUT_LANGUAGE_OPTIONS = [
   { value: "th-TH", label: "Thai" },
@@ -567,7 +568,7 @@ export default function VoiceTranslator({
 
   const processAudioChunk = useCallback(
     async (blob: Blob, durationMs: number) => {
-      if (!blob || blob.size === 0) {
+      if (!blob || blob.size < MIN_AUDIO_CHUNK_BYTES) {
         return;
       }
 
@@ -673,7 +674,7 @@ export default function VoiceTranslator({
 
   const queueAudioChunkUpload = useCallback(
     (blob: Blob, durationMs: number) => {
-      if (!blob || blob.size === 0) {
+      if (!blob || blob.size < MIN_AUDIO_CHUNK_BYTES) {
         return;
       }
 

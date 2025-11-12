@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     const transcription = await client.audio.transcriptions.create({
       model: transcriptionModel,
       file: fileForUpload,
-      response_format: "verbose_json",
+      response_format: "json",
       temperature: 0,
       // Whisper accepts undefined language for auto-detect; otherwise use provided language
       language: normalizedLanguage ?? undefined,
