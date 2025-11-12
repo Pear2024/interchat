@@ -117,8 +117,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const arrayBuffer = await audioFile.arrayBuffer();
     const fileForUpload = await OpenAI.toFile(
-      audioFile.stream(),
+      new Blob([arrayBuffer]),
       audioFile.name || "audio.webm"
     );
 
