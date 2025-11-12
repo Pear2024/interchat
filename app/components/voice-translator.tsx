@@ -23,7 +23,7 @@ type PendingChunk = {
   id: string;
   text: string;
   createdAt: number;
-  status: "final" | "partial";
+  status: "final";
 };
 
 type Transcript = {
@@ -33,11 +33,9 @@ type Transcript = {
   sourceLanguage: string;
   timestamp: string;
   createdAt: number;
-  status: "interim" | "partial" | "final";
+  status: "interim" | "final";
 };
 
-const PARTIAL_CHUNK_WORDS = 4;
-const INTERIM_FLUSH_DELAY_MS = 350;
 const MAX_PARALLEL_TRANSLATIONS = 3;
 
 const INPUT_LANGUAGE_OPTIONS = [
@@ -76,10 +74,7 @@ export default function VoiceTranslator({
   const floatingRef = useRef<HTMLDivElement | null>(null);
   const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveOriginalRef = useRef<string>("");
-  const lastInterimTextRef = useRef<string>("");
-  const partialBufferRef = useRef<string>("");
-  const processedPartialRef = useRef<Set<string>>(new Set());
-  const interimFlushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interimDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayedNarrativeRef = useRef("");
   const isTranslatingLiveRef = useRef(false);
   const narrativeLengthRef = useRef(0);
@@ -387,17 +382,8 @@ export default function VoiceTranslator({
         };
 
         setError(null);
-        if (item.status === "final") {
-          setLiveOriginal(item.text);
-          processedPartialRef.current.clear();
-          partialBufferRef.current = "";
-          setTranscripts((current) => [
-            entry,
-            ...current.filter((record) => record.status !== "partial"),
-          ]);
-        } else {
-          setTranscripts((current) => [entry, ...current]);
-        }
+        setLiveOriginal(item.text);
+        setTranscripts((current) => [entry, ...current]);
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           translationQueueRef.current.unshift(item);
@@ -467,7 +453,7 @@ export default function VoiceTranslator({
   }, [scheduleTranslations]);
 
   const enqueueTranslation = useCallback(
-    (text: string, status: "final" | "partial" = "final") => {
+    (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
@@ -476,7 +462,7 @@ export default function VoiceTranslator({
         id: `${createdAt}-${Math.random().toString(36).slice(2, 8)}`,
         text: trimmed,
         createdAt,
-        status,
+        status: "final",
       };
 
       translationQueueRef.current.push(item);
@@ -507,16 +493,14 @@ export default function VoiceTranslator({
       if (!keepDisplay) {
         setLiveOriginal("");
       }
-      if (interimFlushTimeoutRef.current) {
-        clearTimeout(interimFlushTimeoutRef.current);
-        interimFlushTimeoutRef.current = null;
+      if (interimDebounceRef.current) {
+        clearTimeout(interimDebounceRef.current);
+        interimDebounceRef.current = null;
       }
       isTranslatingLiveRef.current = false;
       setIsTranslatingLive(false);
       liveOriginalRef.current = "";
-      lastInterimTextRef.current = "";
-      partialBufferRef.current = "";
-      processedPartialRef.current.clear();
+      setInterimSegments([]);
     },
     [stopLiveInterval]
   );
@@ -531,109 +515,46 @@ export default function VoiceTranslator({
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      if (interimFlushTimeoutRef.current) {
-        clearTimeout(interimFlushTimeoutRef.current);
-        interimFlushTimeoutRef.current = null;
-      }
-
-      const leftover = partialBufferRef.current.trim();
-      if (leftover && !processedPartialRef.current.has(leftover)) {
-        processedPartialRef.current.add(leftover);
-        enqueueTranslation(leftover, "partial");
-      }
-
-      setLiveOriginal(trimmed);
-      setInterimSegments((current) =>
-        current.filter((segment) => segment.original.trim() !== trimmed)
-      );
-      processedPartialRef.current.clear();
-      partialBufferRef.current = "";
-      lastInterimTextRef.current = "";
-      enqueueTranslation(trimmed, "final");
-    },
-    [enqueueTranslation]
-  );
-
-  const interimDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleInterimTranscript = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      setLiveOriginal(trimmed);
-      liveOriginalRef.current = trimmed;
-
       if (interimDebounceRef.current) {
         clearTimeout(interimDebounceRef.current);
         interimDebounceRef.current = null;
       }
-
-      if (!trimmed) {
-        setInterimSegments([]);
-        lastInterimTextRef.current = "";
-        partialBufferRef.current = "";
-        if (interimFlushTimeoutRef.current) {
-          clearTimeout(interimFlushTimeoutRef.current);
-          interimFlushTimeoutRef.current = null;
-        }
-        return;
-      }
-
-      interimDebounceRef.current = setTimeout(() => {
-        setInterimSegments([
-          {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            original: trimmed,
-            translated: "",
-            sourceLanguage: "unknown",
-            timestamp: new Date().toLocaleTimeString(),
-            createdAt: Date.now(),
-            status: "interim",
-          },
-        ]);
-        lastInterimTextRef.current = trimmed;
-      }, 150);
-
-      const previous = lastInterimTextRef.current;
-      let addition = trimmed;
-      if (previous && trimmed.startsWith(previous)) {
-        addition = trimmed.slice(previous.length).trim();
-      } else if (previous && previous.length > trimmed.length) {
-        partialBufferRef.current = trimmed;
-        addition = "";
-      }
-
-      if (addition) {
-        partialBufferRef.current = `${partialBufferRef.current} ${addition}`.trim();
-        const words = partialBufferRef.current.split(/\s+/).filter(Boolean);
-        while (words.length >= PARTIAL_CHUNK_WORDS) {
-          const chunkWords = words.splice(0, PARTIAL_CHUNK_WORDS);
-          const chunkText = chunkWords.join(" ");
-          if (!processedPartialRef.current.has(chunkText)) {
-            processedPartialRef.current.add(chunkText);
-            enqueueTranslation(chunkText, "partial");
-          }
-        }
-        partialBufferRef.current = words.join(" ");
-
-        if (interimFlushTimeoutRef.current) {
-          clearTimeout(interimFlushTimeoutRef.current);
-        }
-        if (partialBufferRef.current) {
-          interimFlushTimeoutRef.current = setTimeout(() => {
-            const leftover = partialBufferRef.current.trim();
-            if (leftover && !processedPartialRef.current.has(leftover)) {
-              processedPartialRef.current.add(leftover);
-              enqueueTranslation(leftover, "partial");
-              partialBufferRef.current = "";
-            }
-            interimFlushTimeoutRef.current = null;
-          }, INTERIM_FLUSH_DELAY_MS);
-        }
-      }
-      lastInterimTextRef.current = trimmed;
+      setLiveOriginal(trimmed);
+      setInterimSegments([]);
+      enqueueTranslation(trimmed);
     },
     [enqueueTranslation]
   );
+
+  const handleInterimTranscript = useCallback((text: string) => {
+    const trimmed = text.trim();
+    setLiveOriginal(trimmed);
+    liveOriginalRef.current = trimmed;
+
+    if (interimDebounceRef.current) {
+      clearTimeout(interimDebounceRef.current);
+      interimDebounceRef.current = null;
+    }
+
+    if (!trimmed) {
+      setInterimSegments([]);
+      return;
+    }
+
+    interimDebounceRef.current = setTimeout(() => {
+      setInterimSegments([
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          original: trimmed,
+          translated: "",
+          sourceLanguage: "unknown",
+          timestamp: new Date().toLocaleTimeString(),
+          createdAt: Date.now(),
+          status: "interim",
+        },
+      ]);
+    }, 150);
+  }, []);
 
   const handleFloatingPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
