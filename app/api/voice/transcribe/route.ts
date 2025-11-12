@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { APIError } from "openai/error";
+
+export const runtime = "nodejs";
 
 import {
   fetchCreditBalance,
@@ -114,9 +117,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const fileForUpload = await OpenAI.toFile(
+      audioFile.stream(),
+      audioFile.name || "audio.webm"
+    );
+
     const transcription = await client.audio.transcriptions.create({
       model: transcriptionModel,
-      file: audioFile,
+      file: fileForUpload,
       response_format: "verbose_json",
       temperature: 0,
       // Whisper accepts undefined language for auto-detect; otherwise use provided language
@@ -186,6 +194,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Transcription API error", error);
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        {
+          error: "Transcription failed",
+          detail: error.message,
+        },
+        { status: error.status ?? 500 }
+      );
+    }
     return NextResponse.json(
       { error: "Transcription failed" },
       { status: 500 }
