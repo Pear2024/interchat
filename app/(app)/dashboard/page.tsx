@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureProfile } from "@/app/actions/ensure-profile";
 import { getServerSupabaseClient, getServiceSupabaseClient } from "@/lib/supabaseServer";
@@ -60,8 +61,8 @@ export default async function WorkspaceDashboardPage() {
     }
   });
 
-  const now = Date.now();
-  const threshold = now - ONLINE_THRESHOLD_MINUTES * 60 * 1000;
+  const now = new Date();
+  const threshold = now.getTime() - ONLINE_THRESHOLD_MINUTES * 60 * 1000;
 
   let onlineCount = 0;
   lastSeenMap.forEach((timestamp) => {
@@ -102,12 +103,12 @@ export default async function WorkspaceDashboardPage() {
               recent activity recorded in any room.
             </p>
           </div>
-          <a
+          <Link
             href="/rooms"
             className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/20"
           >
             Back to rooms
-          </a>
+          </Link>
         </header>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -37,6 +37,7 @@ type Transcript = {
 };
 
 const MAX_PARALLEL_TRANSLATIONS = 3;
+const RECORDING_TIMESLICE_MS = 4_000;
 
 const INPUT_LANGUAGE_OPTIONS = [
   { value: "th-TH", label: "Thai" },
@@ -54,7 +55,8 @@ export default function VoiceTranslator({
 }: {
   targetLanguage: string;
 }) {
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const [isSupported, setIsSupported] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +82,9 @@ export default function VoiceTranslator({
   const narrativeLengthRef = useRef(0);
   const translationQueueRef = useRef<PendingChunk[]>([]);
   const activeTranslationsRef = useRef(0);
+  const activeTranscriptionsRef = useRef(0);
+  const uploadQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const chunkStartRef = useRef<number | null>(null);
   const scheduleTranslationsRef = useRef<(() => void) | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
@@ -299,6 +304,29 @@ export default function VoiceTranslator({
     }
   }, []);
 
+  const stopRecorderTracks = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        // ignore stop errors
+      }
+    }
+    mediaRecorderRef.current = null;
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // ignore track stop errors
+        }
+      });
+      mediaStreamRef.current = null;
+    }
+  }, []);
+
   const updateQueueState = useCallback(() => {
     setPendingQueue([...translationQueueRef.current]);
   }, []);
@@ -353,7 +381,9 @@ export default function VoiceTranslator({
   );
 
   const syncTranslatingState = useCallback(() => {
-    const shouldBeActive = activeTranslationsRef.current > 0;
+    const shouldBeActive =
+      activeTranslationsRef.current > 0 ||
+      activeTranscriptionsRef.current > 0;
     if (isTranslatingLiveRef.current !== shouldBeActive) {
       isTranslatingLiveRef.current = shouldBeActive;
       setIsTranslatingLive(shouldBeActive);
@@ -383,13 +413,16 @@ export default function VoiceTranslator({
 
         setError(null);
         setLiveOriginal(item.text);
+        setInterimSegments((current) =>
+          current.filter((segment) => segment.id !== entry.id)
+        );
         setTranscripts((current) => [entry, ...current]);
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           translationQueueRef.current.unshift(item);
           updateQueueState();
           setError(error.message);
-          recognitionRef.current?.stop();
+          stopRecorderTracks();
           stopLiveInterval();
           setIsListening(false);
           shouldPause = true;
@@ -409,6 +442,9 @@ export default function VoiceTranslator({
           }
 
           setTranscripts((current) => [entry, ...current]);
+          setInterimSegments((current) =>
+            current.filter((segment) => segment.id !== entry.id)
+          );
           setError(
             error instanceof Error ? error.message : "ไม่สามารถแปลได้"
           );
@@ -424,7 +460,7 @@ export default function VoiceTranslator({
         }
       }
     },
-    [setIsListening, stopLiveInterval, syncTranslatingState, translateSegment, updateQueueState]
+    [setIsListening, stopLiveInterval, stopRecorderTracks, syncTranslatingState, translateSegment, updateQueueState]
   );
 
   const scheduleTranslations = useCallback(() => {
@@ -453,9 +489,9 @@ export default function VoiceTranslator({
   }, [scheduleTranslations]);
 
   const enqueueTranslation = useCallback(
-    (text: string) => {
+    (text: string): string | null => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return null;
 
       const createdAt = Date.now();
       const item: PendingChunk = {
@@ -469,21 +505,20 @@ export default function VoiceTranslator({
       updateQueueState();
 
       scheduleTranslations();
+      return item.id;
     },
     [scheduleTranslations, updateQueueState]
   );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const SpeechRecognition =
-      (window as typeof window & { webkitSpeechRecognition?: unknown })
-        .SpeechRecognition ||
-      (window as typeof window & { webkitSpeechRecognition?: unknown })
-        .webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setIsSupported(false);
+    const canRecordAudio =
+      typeof window.MediaRecorder !== "undefined" &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function";
+    setIsSupported(canRecordAudio);
+    if (!canRecordAudio) {
+      setError("เบราว์เซอร์นี้ไม่รองรับการอัดเสียงสำหรับการถอดคำพูด");
     }
   }, []);
 
@@ -501,60 +536,146 @@ export default function VoiceTranslator({
       setIsTranslatingLive(false);
       liveOriginalRef.current = "";
       setInterimSegments([]);
+      chunkStartRef.current = null;
     },
     [stopLiveInterval]
   );
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
+    stopRecorderTracks();
+    chunkStartRef.current = null;
+    setIsListening(false);
     resetLivePreview({ keepDisplay: true });
-  }, [resetLivePreview]);
+  }, [resetLivePreview, stopRecorderTracks]);
 
   const handleFinalTranscript = useCallback(
-    (text: string) => {
+    (text: string): string | null => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return null;
 
       if (interimDebounceRef.current) {
         clearTimeout(interimDebounceRef.current);
         interimDebounceRef.current = null;
       }
       setLiveOriginal(trimmed);
+      liveOriginalRef.current = trimmed;
       setInterimSegments([]);
-      enqueueTranslation(trimmed);
+      return enqueueTranslation(trimmed);
     },
     [enqueueTranslation]
   );
 
-  const handleInterimTranscript = useCallback((text: string) => {
-    const trimmed = text.trim();
-    setLiveOriginal(trimmed);
-    liveOriginalRef.current = trimmed;
+  const processAudioChunk = useCallback(
+    async (blob: Blob, durationMs: number) => {
+      if (!blob || blob.size === 0) {
+        return;
+      }
 
-    if (interimDebounceRef.current) {
-      clearTimeout(interimDebounceRef.current);
-      interimDebounceRef.current = null;
-    }
+      activeTranscriptionsRef.current += 1;
+      syncTranslatingState();
 
-    if (!trimmed) {
-      setInterimSegments([]);
-      return;
-    }
+      try {
+        const formData = new FormData();
+        formData.append("audio", blob, `chunk-${Date.now()}.webm`);
+        if (Number.isFinite(durationMs) && durationMs > 0) {
+          formData.append(
+            "durationMs",
+            Math.max(0, Math.round(durationMs)).toString()
+          );
+        }
 
-    interimDebounceRef.current = setTimeout(() => {
-      setInterimSegments([
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          original: trimmed,
-          translated: "",
-          sourceLanguage: "unknown",
-          timestamp: new Date().toLocaleTimeString(),
-          createdAt: Date.now(),
-          status: "interim",
-        },
-      ]);
-    }, 150);
-  }, []);
+        formData.append("language", inputLanguage);
+
+        const response = await fetch("/api/voice/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (response.status === 402) {
+          const payload = (await response.json().catch(() => null)) as
+            | {
+                error?: string;
+                remainingCredits?: number;
+                requiredCredits?: number;
+              }
+            | null;
+
+          setError(
+            payload?.error ??
+              "ไม่เพียงพอสำหรับถอดเสียง กรุณาเติมเครดิตแล้วลองใหม่"
+          );
+          stopRecorderTracks();
+          setIsListening(false);
+          resetLivePreview({ keepDisplay: true });
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`ถอดเสียงไม่สำเร็จ (${response.status})`);
+        }
+
+        const payload = (await response.json()) as {
+          text?: string;
+          language?: string | null;
+        };
+
+        const text = payload.text?.trim();
+        if (text) {
+          setError(null);
+          const entryId = handleFinalTranscript(text);
+          if (entryId) {
+            const createdAt = Date.now();
+            setInterimSegments([
+              {
+                id: entryId,
+                original: text,
+                translated: "",
+                sourceLanguage: (payload.language ?? "unknown") || "unknown",
+                timestamp: new Date(createdAt).toLocaleTimeString(),
+                createdAt,
+                status: "interim",
+              },
+            ]);
+          }
+        }
+      } catch (chunkError) {
+        console.error("Transcription chunk error", chunkError);
+        setError(
+          chunkError instanceof Error
+            ? chunkError.message
+            : "ถอดเสียงไม่สำเร็จ"
+        );
+      } finally {
+        activeTranscriptionsRef.current = Math.max(
+          0,
+          activeTranscriptionsRef.current - 1
+        );
+        syncTranslatingState();
+      }
+    },
+    [
+      handleFinalTranscript,
+      inputLanguage,
+      resetLivePreview,
+      stopRecorderTracks,
+      setError,
+      setIsListening,
+      syncTranslatingState,
+    ]
+  );
+
+  const queueAudioChunkUpload = useCallback(
+    (blob: Blob, durationMs: number) => {
+      if (!blob || blob.size === 0) {
+        return;
+      }
+
+      uploadQueueRef.current = uploadQueueRef.current
+        .catch(() => undefined)
+        .then(() => processAudioChunk(blob, durationMs));
+    },
+    [processAudioChunk]
+  );
 
   const handleFloatingPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -722,86 +843,141 @@ export default function VoiceTranslator({
     setError(null);
   }, []);
 
-  const startListening = useCallback(() => {
-    setError(null);
-    resetLivePreview();
-
-    const SpeechRecognition =
-      (window as typeof window & { webkitSpeechRecognition?: unknown })
-        .SpeechRecognition ||
-      (window as typeof window & { webkitSpeechRecognition?: unknown })
-        .webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setIsSupported(false);
+  const startListening = useCallback(async () => {
+    if (!isSupported) {
+      setError("เบราว์เซอร์นี้ไม่รองรับการอัดเสียง");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = inputLanguage;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let latestInterim = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        const transcript = result[0]?.transcript ?? "";
-
-        if (result.isFinal) {
-          void handleFinalTranscript(transcript);
-        } else {
-          latestInterim = transcript;
-        }
-      }
-
-      if (latestInterim) {
-        setError(null);
-        handleInterimTranscript(latestInterim);
-      }
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === "no-speech") {
-        setError("ไม่ได้ยินเสียงพูด ลองใหม่อีกครั้ง");
-      } else if (event.error === "not-allowed") {
-        setError("เบราว์เซอร์ไม่อนุญาตให้เข้าถึงไมโครโฟน");
-      } else {
-        setError(`เกิดข้อผิดพลาด: ${event.error}`);
-      }
-      setIsListening(false);
-      resetLivePreview({ keepDisplay: true });
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      resetLivePreview({ keepDisplay: true });
-    };
-
-    recognition.start();
-    recognitionRef.current = recognition;
-    setIsListening(true);
-    if (translationQueueRef.current.length > 0) {
-      scheduleTranslations();
+    if (
+      typeof navigator === "undefined" ||
+      typeof MediaRecorder === "undefined" ||
+      typeof navigator.mediaDevices?.getUserMedia !== "function"
+    ) {
+      setIsSupported(false);
+      setError("เบราว์เซอร์นี้ไม่รองรับการอัดเสียง");
+      return;
     }
-  }, [handleFinalTranscript, handleInterimTranscript, inputLanguage, resetLivePreview, scheduleTranslations]);
+
+    setError(null);
+    resetLivePreview();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+
+      const mimeCandidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+      ];
+      const supportedMime =
+        typeof MediaRecorder.isTypeSupported === "function"
+          ? mimeCandidates.find((candidate) =>
+              MediaRecorder.isTypeSupported(candidate)
+            )
+          : undefined;
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: supportedMime || undefined,
+      });
+
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+
+      recorder.addEventListener("dataavailable", (event: BlobEvent) => {
+        if (!event.data || event.data.size === 0) {
+          return;
+        }
+        const now = performance.now();
+        const startedAt = chunkStartRef.current ?? now;
+        const duration = Math.max(250, now - startedAt);
+        chunkStartRef.current = now;
+        queueAudioChunkUpload(event.data, duration);
+      });
+
+      recorder.addEventListener("stop", () => {
+        chunkStartRef.current = null;
+        setIsListening(false);
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((track) => {
+            try {
+              track.stop();
+            } catch {
+              // ignore stop errors
+            }
+          });
+          mediaStreamRef.current = null;
+        }
+        mediaRecorderRef.current = null;
+      });
+
+      recorder.addEventListener("error", (event) => {
+        console.error("MediaRecorder error", event);
+        setError("เกิดข้อผิดพลาดในการอัดเสียง");
+        setIsListening(false);
+        resetLivePreview({ keepDisplay: true });
+      });
+
+      chunkStartRef.current = performance.now();
+      recorder.start(RECORDING_TIMESLICE_MS);
+      setIsListening(true);
+      if (translationQueueRef.current.length > 0) {
+        scheduleTranslations();
+      }
+    } catch (mediaError) {
+      console.error("Unable to access microphone", mediaError);
+      if (
+        mediaError &&
+        typeof mediaError === "object" &&
+        "name" in mediaError &&
+        mediaError.name === "NotAllowedError"
+      ) {
+        setError("เบราว์เซอร์ไม่อนุญาตให้เข้าถึงไมโครโฟน");
+      } else if (
+        mediaError &&
+        typeof mediaError === "object" &&
+        "name" in mediaError &&
+        mediaError.name === "NotFoundError"
+      ) {
+        setError("ไม่พบไมโครโฟนสำหรับใช้งาน");
+      } else {
+        setError("เปิดไมโครโฟนไม่ได้ กรุณาลองใหม่");
+      }
+      setIsListening(false);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {
+            // ignore stop errors
+          }
+        });
+        mediaStreamRef.current = null;
+      }
+    }
+  }, [isSupported, queueAudioChunkUpload, resetLivePreview, scheduleTranslations]);
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
+      stopRecorderTracks();
       stopLiveInterval();
       if (interimDebounceRef.current) {
         clearTimeout(interimDebounceRef.current);
         interimDebounceRef.current = null;
       }
     };
-  }, [stopLiveInterval]);
+  }, [stopLiveInterval, stopRecorderTracks]);
 
   if (!isSupported) {
     return (
       <div className="rounded-3xl border border-white/10 bg-rose-500/10 px-6 py-6 text-sm text-rose-200">
-        เบราว์เซอร์นี้ไม่รองรับ Speech Recognition (Web Speech API) กรุณาลองใช้ Chrome หรือ
-        Edge เวอร์ชันล่าสุด
+        เบราว์เซอร์นี้ไม่รองรับการอัดเสียงผ่านไมโครโฟน กรุณาลองใช้ Chrome หรือ Edge เวอร์ชันล่าสุด
       </div>
     );
   }
@@ -888,7 +1064,9 @@ export default function VoiceTranslator({
             ) : (
               <button
                 type="button"
-                onClick={startListening}
+                onClick={() => {
+                  void startListening();
+                }}
                 className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-emerald-500/20 px-5 py-2 text-sm font-semibold text-emerald-100 transition hover:border-white/40 hover:bg-emerald-500/30"
               >
                 ● Start listening
