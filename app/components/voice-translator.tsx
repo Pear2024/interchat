@@ -790,9 +790,9 @@ export default function VoiceTranslator({
     return () => {
       recognitionRef.current?.stop();
       stopLiveInterval();
-      if (interimFlushTimeoutRef.current) {
-        clearTimeout(interimFlushTimeoutRef.current);
-        interimFlushTimeoutRef.current = null;
+      if (interimDebounceRef.current) {
+        clearTimeout(interimDebounceRef.current);
+        interimDebounceRef.current = null;
       }
     };
   }, [stopLiveInterval]);
