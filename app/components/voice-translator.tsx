@@ -611,7 +611,14 @@ export default function VoiceTranslator({
         }
 
         if (!response.ok) {
-          throw new Error(`ถอดเสียงไม่สำเร็จ (${response.status})`);
+          const errorPayload = (await response.json().catch(() => null)) as
+            | { error?: string; detail?: string }
+            | null;
+          const message =
+            errorPayload?.detail ??
+            errorPayload?.error ??
+            `ถอดเสียงไม่สำเร็จ (${response.status})`;
+          throw new Error(message);
         }
 
         const payload = (await response.json()) as {

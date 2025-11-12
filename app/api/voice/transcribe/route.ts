@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -118,9 +119,13 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await audioFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     const fileForUpload = await OpenAI.toFile(
-      new Blob([arrayBuffer]),
-      audioFile.name || "audio.webm"
+      buffer,
+      audioFile.name || "audio.webm",
+      {
+        type: audioFile.type || "audio/webm",
+      }
     );
 
     const transcription = await client.audio.transcriptions.create({
@@ -200,6 +205,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Transcription failed",
           detail: error.message,
+          status: error.status ?? 500,
         },
         { status: error.status ?? 500 }
       );
