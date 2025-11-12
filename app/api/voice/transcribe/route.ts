@@ -181,22 +181,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const segments = Array.isArray(transcription.segments)
-      ? transcription.segments.map((segment) => ({
-          id: segment.id,
-          start: segment.start,
-          end: segment.end,
-          text: segment.text,
-        }))
-      : [];
-
     return NextResponse.json({
       text: transcription.text ?? "",
       language: transcription.language ?? null,
       duration: transcription.duration ?? null,
       creditsCharged,
       remainingCredits,
-      segments,
+      segments: Array.isArray(transcription.segments)
+        ? transcription.segments.map((segment) => ({
+            id: segment.id,
+            start: segment.start,
+            end: segment.end,
+            text: segment.text,
+          }))
+        : [],
     });
   } catch (error) {
     console.error("Transcription API error", error);
