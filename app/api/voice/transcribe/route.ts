@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const transcriptionData = transcription as {
+    const transcriptionResult = transcription as {
       text?: string | null;
       language?: string | null;
       duration?: number | null;
@@ -193,24 +193,25 @@ export async function POST(request: NextRequest) {
       }>;
     };
 
-    const language =
-      typeof transcriptionData.language === "string" && transcriptionData.language
-        ? transcriptionData.language
+    const resolvedLanguage =
+      typeof transcriptionResult.language === "string" &&
+      transcriptionResult.language
+        ? transcriptionResult.language
         : null;
-    const duration =
-      typeof transcriptionData.duration === "number" &&
-      Number.isFinite(transcriptionData.duration)
-        ? transcriptionData.duration
+    const resolvedDuration =
+      typeof transcriptionResult.duration === "number" &&
+      Number.isFinite(transcriptionResult.duration)
+        ? transcriptionResult.duration
         : null;
 
     return NextResponse.json({
-      text: transcriptionData.text ?? "",
-      language,
-      duration,
+      text: transcriptionResult.text ?? "",
+      language: resolvedLanguage,
+      duration: resolvedDuration,
       creditsCharged,
       remainingCredits,
-      segments: Array.isArray(transcriptionData.segments)
-        ? transcriptionData.segments.map((segment) => ({
+      segments: Array.isArray(transcriptionResult.segments)
+        ? transcriptionResult.segments.map((segment) => ({
             id: segment.id,
             start: segment.start,
             end: segment.end,
