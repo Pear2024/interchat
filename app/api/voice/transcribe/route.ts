@@ -181,14 +181,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const transcriptionData = transcription as {
+      text?: string | null;
+      language?: string | null;
+      duration?: number | null;
+      segments?: Array<{
+        id: number | string;
+        start: number;
+        end: number;
+        text: string;
+      }>;
+    };
+
+    const language =
+      typeof transcriptionData.language === "string" && transcriptionData.language
+        ? transcriptionData.language
+        : null;
+    const duration =
+      typeof transcriptionData.duration === "number" &&
+      Number.isFinite(transcriptionData.duration)
+        ? transcriptionData.duration
+        : null;
+
     return NextResponse.json({
-      text: transcription.text ?? "",
-      language: transcription.language ?? null,
-      duration: transcription.duration ?? null,
+      text: transcriptionData.text ?? "",
+      language,
+      duration,
       creditsCharged,
       remainingCredits,
-      segments: Array.isArray(transcription.segments)
-        ? transcription.segments.map((segment) => ({
+      segments: Array.isArray(transcriptionData.segments)
+        ? transcriptionData.segments.map((segment) => ({
             id: segment.id,
             start: segment.start,
             end: segment.end,
