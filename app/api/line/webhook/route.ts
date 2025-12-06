@@ -51,13 +51,15 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  const text = message.text.trim();
-  if (!text) {
+  const text = message.text;
+  const normalizedText = typeof text === "string" ? text.trim() : "";
+
+  if (!normalizedText) {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
 
-  const agentResult = await runAgent(userId, text);
+  const agentResult = await runAgent(userId, normalizedText);
   await sendLineReply(event.replyToken, agentResult.reply);
 }
 
