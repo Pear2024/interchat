@@ -13,6 +13,7 @@ type KnowledgeRow = {
   status: string;
   error_message: string | null;
   created_at: string;
+  tags: string[] | null;
 };
 
 function formatTimestamp(value: string) {
@@ -40,7 +41,7 @@ export default async function KnowledgeLogsPage() {
   const serviceClient = getServiceSupabaseClient();
   const { data: sources, error } = await serviceClient
     .from("knowledge_sources")
-    .select("id,type,title,source,status,error_message,created_at")
+    .select("id,type,title,source,status,error_message,created_at,tags")
     .eq("submitted_by", user.id)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -96,6 +97,7 @@ export default async function KnowledgeLogsPage() {
                 <th className="px-2 py-2">Type</th>
                 <th className="px-2 py-2">Title</th>
                 <th className="px-2 py-2">Source</th>
+                <th className="px-2 py-2">Tags</th>
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Chunks</th>
                 <th className="px-2 py-2">Created</th>
@@ -105,7 +107,7 @@ export default async function KnowledgeLogsPage() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-center text-slate-400">
+                  <td colSpan={8} className="px-2 py-6 text-center text-slate-400">
                     ยังไม่มีแหล่งความรู้ในระบบ ลองเพิ่มจากหน้า /knowledge ก่อนนะคะ
                   </td>
                 </tr>
@@ -118,6 +120,22 @@ export default async function KnowledgeLogsPage() {
                   <td className="px-2 py-3 text-white">{row.title || "—"}</td>
                   <td className="px-2 py-3 text-slate-300">
                     <span className="break-all text-xs">{row.source}</span>
+                  </td>
+                  <td className="px-2 py-3">
+                    {row.tags && row.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {row.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-widest text-slate-200"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-500">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-3">
                     <span

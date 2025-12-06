@@ -13,6 +13,7 @@ export type KnowledgeEntry = {
   status: string;
   error_message: string | null;
   created_at: string;
+  tags: string[] | null;
 };
 
 type StatusMessage = {
@@ -50,6 +51,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [textTitle, setTextTitle] = useState("");
   const [textContent, setTextContent] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
   const [submitting, setSubmitting] = useState(false);
   const [ingesting, setIngesting] = useState(false);
@@ -62,11 +64,26 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
     return trimmed.split(/\s+/).length;
   }, [textContent]);
 
+  function normalizeTagsInput(raw: string) {
+    const seen = new Set<string>();
+    return raw
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase())
+      .filter((tag) => {
+        if (!tag || seen.has(tag)) {
+          return false;
+        }
+        seen.add(tag);
+        return true;
+      });
+  }
+
   async function postJson(payload: {
     type: KnowledgeTab;
     title?: string;
     source?: string;
     content?: string;
+    tags?: string[];
   }) {
     const response = await fetch("/api/knowledge", {
       method: "POST",
@@ -88,10 +105,14 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
     if (!pdfFile) {
       throw new Error("กรุณาเลือกไฟล์ PDF");
     }
+    const normalizedTags = normalizeTagsInput(tagsInput);
     const formData = new FormData();
     formData.append("type", "pdf");
     formData.append("title", pdfTitle || pdfFile.name);
     formData.append("file", pdfFile);
+    if (normalizedTags.length > 0) {
+      formData.append("tags", JSON.stringify(normalizedTags));
+    }
 
     const response = await fetch("/api/knowledge", {
       method: "POST",
@@ -122,6 +143,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
         type: "url",
         title: urlTitle || urlValue,
         source: urlValue,
+        tags: normalizeTagsInput(tagsInput),
       });
       prependEntry(entry);
       setUrlTitle("");
@@ -147,6 +169,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
         type: "youtube",
         title: ytTitle || ytValue,
         source: ytValue,
+        tags: normalizeTagsInput(tagsInput),
       });
       prependEntry(entry);
       setYtTitle("");
@@ -193,6 +216,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
         type: "text",
         title: textTitle || "Manual entry",
         content: textContent,
+        tags: normalizeTagsInput(tagsInput),
       });
       prependEntry(entry);
       setTextTitle("");
@@ -399,6 +423,18 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
               {statusMessage.text}
             </div>
           )}
+          <div className="space-y-2 rounded-3xl border border-white/10 bg-black/30 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Tags (optional)</span>
+              <span className="text-[11px] text-slate-400">คั่นด้วยเครื่องหมายจุลภาค เช่น ราคา,โปรโมชั่น</span>
+            </div>
+            <input
+              className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-white focus:outline-none"
+              placeholder="เพิ่มแท็กเพื่อจัดกลุ่ม เช่น ราคา, ผลิตภัณฑ์, รีวิว"
+              value={tagsInput}
+              onChange={(event) => setTagsInput(event.target.value)}
+            />
+          </div>
           {renderTabContent()}
         </section>
 
@@ -416,6 +452,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
                   <th className="px-2 py-2">Type</th>
                   <th className="px-2 py-2">Title</th>
                   <th className="px-2 py-2">Source</th>
+                  <th className="px-2 py-2">Tags</th>
                   <th className="px-2 py-2">Status</th>
                   <th className="px-2 py-2">Created</th>
                 </tr>
@@ -423,7 +460,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
               <tbody>
                 {latestEntries.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-2 py-6 text-center text-slate-400">
+                    <td colSpan={6} className="px-2 py-6 text-center text-slate-400">
                       ยังไม่มีแหล่งความรู้ที่บันทึกไว้ ลองเพิ่มจากแบบฟอร์มด้านบนได้เลยค่ะ
                     </td>
                   </tr>
@@ -436,6 +473,22 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
                     <td className="px-2 py-3 text-white">{entry.title || "—"}</td>
                     <td className="px-2 py-3 text-slate-300">
                       <span className="break-all text-xs">{entry.source}</span>
+                    </td>
+                    <td className="px-2 py-3">
+                      {entry.tags && entry.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {entry.tags.map((tag) => (
+                            <span
+                              key={`${entry.id}-${tag}`}
+                              className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-widest text-slate-200"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
+                      )}
                     </td>
                     <td className="px-2 py-3">
                       <span

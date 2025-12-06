@@ -20,7 +20,7 @@ export default async function KnowledgePage() {
   const serviceClient = getServiceSupabaseClient();
   const { data, error } = await serviceClient
     .from("knowledge_sources")
-    .select("id,type,title,source,status,error_message,created_at")
+    .select("id,type,title,source,status,error_message,created_at,tags")
     .eq("submitted_by", user.id)
     .order("created_at", { ascending: false })
     .limit(20);

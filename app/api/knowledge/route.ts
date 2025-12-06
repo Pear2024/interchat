@@ -12,6 +12,30 @@ async function ensureAuthenticatedUser() {
   return data.user;
 }
 
+function normalizeTagsValue(input: unknown): string[] {
+  if (Array.isArray(input)) {
+    return input.map((tag) => `${tag}`.trim()).filter(Boolean);
+  }
+
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return normalizeTagsValue(parsed);
+      }
+    } catch {
+      // fall through to comma split
+    }
+    return trimmed.split(",").map((tag) => tag.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
 async function insertKnowledgeSource(payload: {
   submitted_by: string;
   type: "url" | "pdf" | "youtube" | "text";
@@ -19,6 +43,7 @@ async function insertKnowledgeSource(payload: {
   source: string;
   status?: string;
   raw_text?: string | null;
+  tags?: string[];
 }) {
   const serviceClient = getServiceSupabaseClient();
   const { data, error } = await serviceClient
@@ -30,8 +55,9 @@ async function insertKnowledgeSource(payload: {
       source: payload.source,
       status: payload.status ?? "pending",
       raw_text: payload.raw_text ?? null,
+      tags: payload.tags ?? null,
     })
-    .select("id,type,title,source,status,error_message,created_at")
+    .select("id,type,title,source,status,error_message,created_at,tags")
     .single();
 
   if (error) {
@@ -47,6 +73,7 @@ async function handleJsonPayload(request: NextRequest, userId: string) {
     title?: string | null;
     source?: string;
     content?: string;
+    tags?: string[] | string;
   };
 
   const type = body.type?.trim();
@@ -58,6 +85,8 @@ async function handleJsonPayload(request: NextRequest, userId: string) {
     return NextResponse.json({ error: "Missing type" }, { status: 400 });
   }
 
+  const normalizedTags = normalizeTagsValue(body.tags);
+
   if (type === "text") {
     if (!content) {
       return NextResponse.json({ error: "Content is required for text sources" }, { status: 400 });
@@ -68,6 +97,7 @@ async function handleJsonPayload(request: NextRequest, userId: string) {
       title: title || "Manual entry",
       source: "manual",
       raw_text: content,
+      tags: normalizedTags,
       status: "pending",
     });
     return NextResponse.json({ data: record });
@@ -86,6 +116,7 @@ async function handleJsonPayload(request: NextRequest, userId: string) {
     type,
     title: title || null,
     source,
+    tags: normalizedTags,
   });
 
   return NextResponse.json({ data: record });
@@ -96,6 +127,7 @@ async function handlePdfPayload(request: NextRequest, userId: string) {
   const type = (formData.get("type") as string | null)?.trim();
   const title = (formData.get("title") as string | null)?.trim() ?? null;
   const file = formData.get("file");
+  const tags = normalizeTagsValue(formData.get("tags"));
 
   if (type !== "pdf") {
     return NextResponse.json({ error: "Invalid PDF payload" }, { status: 400 });
@@ -130,6 +162,7 @@ async function handlePdfPayload(request: NextRequest, userId: string) {
     title: title || safeName,
     source: `${KNOWLEDGE_BUCKET}:${storagePath}`,
     status: "pending",
+    tags,
   });
 
   return NextResponse.json({ data: record });
