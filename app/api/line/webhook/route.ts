@@ -1,105 +1,80 @@
-import { NextRequest, NextResponse } from "next/server";
-
-import {
-  verifyLineSignature,
-  sendLineReply,
-  type LineWebhookBody,
-  type LineWebhookEvent,
-  type LineMessageEvent,
-  type LineFollowEvent,
-} from "@/lib/line";
+// app/api/line/webhook/route.ts
+import { NextRequest } from "next/server";
 import { runAgent } from "@/lib/lineAgent";
+import { sendLineReply } from "@/lib/line";
 
-export const runtime = "nodejs";
+const FALLBACK_REPLY =
+  "ตอนนี้ทรีตอบได้แค่ข้อความตัวอักษรนะคะ 😊\nลองพิมพ์เป็นข้อความส่งมาอีกครั้งได้เลยค่ะ";
 
-const NON_TEXT_MESSAGE_RESPONSE =
-  "ตอนนี้รองรับเฉพาะข้อความตัวอักษรค่ะ ฝากพิมพ์มาได้เลยนะคะ";
-const FOLLOW_GREETING =
-  "ขอบคุณที่ทักมาหาแพร์นะคะ ฉันชื่อทรี พร้อมช่วยปิดการขายและตอบทุกคำถามค่ะ 😊";
+// กำหนด type แบบง่าย ๆ สำหรับ body ที่ได้จาก LINE
+type LineTextMessage = {
+  type: "text";
+  text: string;
+};
 
-function parseRequestBody(rawBody: string): LineWebhookBody | null {
-  try {
-    return JSON.parse(rawBody) as LineWebhookBody;
-  } catch (error) {
-    console.warn("Failed to parse LINE webhook body", error);
-    return null;
-  }
+type LineMessage = {
+  type: string;
+  text?: string;
+};
+
+type LineSource = {
+  userId?: string | null;
+};
+
+type LineMessageEvent = {
+  type: "message";
+  replyToken: string;
+  source: LineSource;
+  message: LineMessage;
+};
+
+type LineWebhookBody = {
+  events?: LineMessageEvent[];
+};
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json()) as LineWebhookBody;
+  const events = body.events ?? [];
+
+  await Promise.all(
+    events.map(async (event) => {
+      if (event.type !== "message") return;
+      await handleMessageEvent(event);
+    })
+  );
+
+  return new Response("OK");
 }
 
-function resolveMessageText(message: LineMessageEvent["message"]): string | null {
+function getTextFromMessage(message: LineMessage): string {
+  // ตรวจ runtime ให้ชัวร์ว่าเป็น text message
   if (
     typeof message === "object" &&
     message !== null &&
     message.type === "text" &&
-    typeof (message as { text?: unknown }).text === "string"
+    typeof message.text === "string"
   ) {
-    return (message as { text: string }).text.trim();
+    return message.text.trim();
   }
-
-  return null;
+  return "";
 }
 
 async function handleMessageEvent(event: LineMessageEvent) {
-  const message = event.message;
-  const userId = event.source?.type === "user" ? event.source.userId : event.source?.userId;
+  const { message, replyToken, source } = event;
 
-  if (!userId) {
-    console.warn("LINE message event is missing userId", event);
-    return;
-  }
+  const userId: string = source.userId ?? "anonymous";
 
-  const text = resolveMessageText(message);
+  // ดึง text ออกมาด้วย helper ที่รีเทิร์น string เสมอ
+  const rawText = getTextFromMessage(message);
+  const text: string = rawText.trim();
+
+  // ถ้าไม่ใช่ข้อความ หรือเป็นข้อความว่าง → ตอบ fallback แล้วจบ
   if (!text) {
-    await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
+    await sendLineReply(replyToken, FALLBACK_REPLY);
     return;
   }
 
+  // ✅ ตรงนี้ TypeScript รู้แน่นอนว่า text เป็น string
   const agentResult = await runAgent(userId, text);
-  await sendLineReply(event.replyToken, agentResult.reply);
-}
-
-async function handleFollowEvent(event: LineFollowEvent) {
-  await sendLineReply(event.replyToken, FOLLOW_GREETING);
-}
-
-async function handleEvent(event: LineWebhookEvent) {
-  if (event.type === "message") {
-    await handleMessageEvent(event);
-    return;
-  }
-
-  if (event.type === "follow") {
-    await handleFollowEvent(event);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const signature = request.headers.get("x-line-signature");
-  const rawBody = await request.text();
-
-  const isValid = verifyLineSignature(rawBody, signature);
-  if (!isValid) {
-    return NextResponse.json(
-      { error: "Invalid signature" },
-      { status: 401 }
-    );
-  }
-
-  const body = parseRequestBody(rawBody);
-
-  if (!body || !Array.isArray(body.events)) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
-
-  const results = await Promise.allSettled(
-    body.events.map((event) => handleEvent(event))
-  );
-
-  for (const result of results) {
-    if (result.status === "rejected") {
-      console.error("LINE webhook handler error", result.reason);
-    }
-  }
-
-  return NextResponse.json({ success: true });
+  await sendLineReply(replyToken, agentResult.reply);
 }
