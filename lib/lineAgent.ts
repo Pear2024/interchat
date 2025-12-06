@@ -82,7 +82,6 @@ type KnowledgeFaqRow = {
 
 async function fetchKnowledgeSnippets(
   supabase: SupabaseClient,
-  sourceLimit = 3,
   chunksPerSource = 2
 ) {
   try {
@@ -90,8 +89,7 @@ async function fetchKnowledgeSnippets(
       .from("knowledge_sources")
       .select("id,title,type")
       .eq("status", "ready")
-      .order("created_at", { ascending: false })
-      .limit(sourceLimit);
+      .order("created_at", { ascending: false });
 
     if (!sourceRows || sourceRows.length === 0) {
       return [];
