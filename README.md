@@ -52,6 +52,7 @@ LINE_AGENT_MEMORY_LIMIT=15
 # OPENAI_DETECTION_MODEL=gpt-4o-mini
 # PRICING_TARGET_MARGIN=0.6
 # PRICING_MIN_PRICE_PER_CREDIT=0.01
+KNOWLEDGE_STORAGE_BUCKET=knowledge-sources
 
 # Stripe one-time purchase price IDs (leave blank to disable checkout buttons)
 STRIPE_SECRET_KEY=...
@@ -139,6 +140,7 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 |--------------------------------|-------------------------------------------------------|
 | `messages`, `message_translations` | Store raw text + translated text                    |
 | `line_agent_logs`              | Memory + audit log for the LINE OA sales agent        |
+| `knowledge_sources`            | Queue of URL / PDF / YouTube sources for ingestion    |
 | `translation_cache`            | Prevent duplicate OpenAI calls                        |
 | `translation_usage_logs`       | Tracking tokens, cost, credits                        |
 | `user_credit_balances`, `user_credit_transactions` | Credit wallet & audit trail             |
