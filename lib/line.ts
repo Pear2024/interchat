@@ -69,7 +69,13 @@ export type LineTextMessage = {
   text: string;
 };
 
-export type LineOutgoingMessage = LineTextMessage;
+export type LineImageMessage = {
+  type: "image";
+  originalContentUrl: string;
+  previewImageUrl?: string;
+};
+
+export type LineOutgoingMessage = LineTextMessage | LineImageMessage;
 
 function timingSafeCompare(expected: string, actual: string) {
   const expectedBuffer = Buffer.from(expected, "base64");
@@ -112,21 +118,41 @@ function normalizeOutgoingMessages(input: string | LineOutgoingMessage | LineOut
       {
         type: "text",
         text: truncateText(input),
-      } satisfies LineOutgoingMessage,
+      } satisfies LineTextMessage,
     ];
   }
 
   if (Array.isArray(input)) {
-    return input.map((message) => ({
-      ...message,
-      text: truncateText(message.text),
-    }));
+    return input.map((message) => {
+      if (message.type === "text") {
+        return {
+          ...message,
+          text: truncateText(message.text),
+        };
+      }
+      if (message.type === "image") {
+        return {
+          ...message,
+          previewImageUrl: message.previewImageUrl ?? message.originalContentUrl,
+        };
+      }
+      return message;
+    });
+  }
+
+  if (input.type === "text") {
+    return [
+      {
+        ...input,
+        text: truncateText(input.text),
+      },
+    ];
   }
 
   return [
     {
       ...input,
-      text: truncateText(input.text),
+      previewImageUrl: input.previewImageUrl ?? input.originalContentUrl,
     },
   ];
 }

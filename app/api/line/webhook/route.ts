@@ -70,5 +70,8 @@ async function handleMessageEvent(event: LineMessageEvent) {
 
   // ✅ ตรงนี้ TypeScript รู้แน่นอนว่า text เป็น string
   const agentResult = await runAgent(userId, text);
-  await sendLineReply(replyToken, agentResult.reply);
+  const outgoing = Array.isArray(agentResult.messages) && agentResult.messages.length > 0
+    ? agentResult.messages
+    : agentResult.reply;
+  await sendLineReply(replyToken, outgoing);
 }

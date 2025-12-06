@@ -143,7 +143,7 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 
 PDF uploads are stored in the Supabase Storage bucket named in `KNOWLEDGE_STORAGE_BUCKET`.
 
-Repeated questions from LINE OA are cached in `knowledge_faq` automatically so the agent can answer common queries instantly without reprocessing knowledge chunks.
+Repeated questions from LINE OA are cached in `knowledge_faq` automatically so the agent can answer common queries instantly without reprocessing knowledge chunks. If the agent needs to send an image in LINE, include a Markdown tag in the knowledge or system prompt reply like `![product](https://example.com/image.jpg)` — the webhook converts it to a LINE image message automatically (any remaining text is still sent as a normal message).
 
 ---
 

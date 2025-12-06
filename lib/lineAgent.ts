@@ -20,6 +20,7 @@ const systemPrompt =
     "3) Pitch the most relevant offer (courses, services, or reseller program) clearly with benefits, price, and next action.",
     "4) Proactively close the sale or invite them to apply as a partner/agent when it makes sense.",
     "Keep replies short (<=3 sentences), empathetic, and in the same language the user used (default to Thai). Always end with a concrete next step or question.",
+    "If you need to send an illustrative image (e.g., product photo), include a Markdown image tag in your reply like this: ![description](https://image-url). Use a single high-quality URL per request.",
     "You must only talk about Three's official products or opportunities. If a user asks about anything unrelated, politely steer the conversation back to Three's offers.",
   ].join(" ");
 
@@ -293,6 +294,10 @@ export type RunAgentResult = {
     outputTokens?: number | null;
     totalTokens?: number | null;
   } | null;
+  messages?: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; originalContentUrl: string; previewImageUrl?: string }
+  >;
 };
 
 export async function runAgent(
@@ -408,6 +413,10 @@ export async function runAgent(
     });
 
     const reply = extractFirstText(response) ?? FALLBACK_REPLY;
+    const imageMatches = Array.from(
+      reply.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g)
+    );
+    const cleanedReply = reply.replace(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g, "").trim();
 
     const usageData = response.usage as
       | {
@@ -424,6 +433,28 @@ export async function runAgent(
           totalTokens: usageData.total_tokens ?? null,
         }
       : null;
+
+    const outgoingMessages: Array<
+      | { type: "text"; text: string }
+      | { type: "image"; originalContentUrl: string; previewImageUrl?: string }
+    > = [];
+
+    if (cleanedReply.length > 0) {
+      outgoingMessages.push({ type: "text", text: cleanedReply });
+    }
+
+    if (imageMatches.length > 0) {
+      imageMatches.forEach((match) => {
+        const url = match[1];
+        if (url) {
+          outgoingMessages.push({
+            type: "image",
+            originalContentUrl: url,
+            previewImageUrl: url,
+          });
+        }
+      });
+    }
 
     await appendLogs(supabase, [
       {
@@ -449,10 +480,11 @@ export async function runAgent(
     await storeFaqAnswer(supabase, questionHash, trimmedMessage, reply, agentModel);
 
     return {
-      reply,
+      reply: cleanedReply || reply,
       model: agentModel,
       usage,
-    };
+      messages: outgoingMessages,
+    } as RunAgentResult & { messages?: typeof outgoingMessages };
   } catch (error) {
     console.error("LINE agent OpenAI error", error);
 
