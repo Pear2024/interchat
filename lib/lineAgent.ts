@@ -71,6 +71,14 @@ type KnowledgeSourceMeta = {
   id: string;
   title: string | null;
   type: string;
+  tags: string[] | null;
+};
+
+type KnowledgeSnippet = {
+  title: string;
+  type: string;
+  content: string;
+  tags: string[];
 };
 
 type KnowledgeFaqRow = {
@@ -80,14 +88,28 @@ type KnowledgeFaqRow = {
   model: string | null;
 };
 
+function normalizeText(input: string) {
+  return input.normalize("NFC").toLowerCase();
+}
+
+function normalizeTagValue(tag?: string | null) {
+  return tag ? normalizeText(tag.trim()) : "";
+}
+
+function hashQuestion(input: string, topicKey?: string | null) {
+  return createHash("sha1")
+    .update(`${input.toLowerCase()}||${topicKey ?? ""}`)
+    .digest("hex");
+}
+
 async function fetchKnowledgeSnippets(
   supabase: SupabaseClient,
   chunksPerSource = 2
-) {
+): Promise<KnowledgeSnippet[]> {
   try {
     const { data: sourceRows } = await supabase
       .from("knowledge_sources")
-      .select("id,title,type")
+      .select("id,title,type,tags")
       .eq("status", "ready")
       .order("created_at", { ascending: false });
 
@@ -106,7 +128,7 @@ async function fetchKnowledgeSnippets(
       return [];
     }
 
-    const snippets: { title: string; type: string; content: string }[] = [];
+    const snippets: KnowledgeSnippet[] = [];
 
     (sourceRows as KnowledgeSourceMeta[]).forEach((source) => {
       const related = (chunkRows as KnowledgeChunkRow[])
@@ -119,6 +141,7 @@ async function fetchKnowledgeSnippets(
           title: source.title ?? `${source.type.toUpperCase()} source`,
           type: source.type,
           content: related.map((chunk) => chunk.content).join(" "),
+          tags: source.tags ?? [],
         });
       }
     });
@@ -130,8 +153,79 @@ async function fetchKnowledgeSnippets(
   }
 }
 
-function hashQuestion(input: string) {
-  return createHash("sha1").update(input.toLowerCase()).digest("hex");
+type ActiveTagInfo = {
+  normalizedSet: Set<string>;
+  display: string[];
+  topicKey: string | null;
+};
+
+function deriveActiveTags(
+  history: ConversationMessage[],
+  currentMessage: string,
+  snippets: KnowledgeSnippet[]
+): ActiveTagInfo {
+  if (snippets.length === 0) {
+    return {
+      normalizedSet: new Set(),
+      display: [],
+      topicKey: null,
+    };
+  }
+
+  const normalizedMessages = [
+    ...history
+      .filter((entry) => entry.role === "user")
+      .map((entry) => normalizeText(entry.content)),
+    normalizeText(currentMessage),
+  ];
+
+  const matched = new Map<string, string>();
+
+  for (const snippet of snippets) {
+    for (const rawTag of snippet.tags ?? []) {
+      const normalizedTag = normalizeTagValue(rawTag);
+      if (!normalizedTag || matched.has(normalizedTag)) {
+        continue;
+      }
+
+      const hit = normalizedMessages.some((message) =>
+        message.includes(normalizedTag)
+      );
+
+      if (hit) {
+        matched.set(normalizedTag, rawTag);
+      }
+    }
+  }
+
+  const normalizedSet = new Set(matched.keys());
+  const topicKey =
+    normalizedSet.size > 0 ? Array.from(normalizedSet).sort().join("|") : null;
+
+  return {
+    normalizedSet,
+    display: Array.from(matched.values()),
+    topicKey,
+  };
+}
+
+function filterKnowledgeSnippets(
+  snippets: KnowledgeSnippet[],
+  activeTags: Set<string>
+) {
+  if (!activeTags || activeTags.size === 0) {
+    return snippets;
+  }
+
+  const filtered = snippets.filter((snippet) => {
+    const normalizedSnippetTags = (snippet.tags ?? [])
+      .map((tag) => normalizeTagValue(tag))
+      .filter(Boolean);
+
+    return normalizedSnippetTags.some((tag) => activeTags.has(tag));
+  });
+
+  return filtered.length > 0 ? filtered : snippets;
 }
 
 async function fetchCachedFaqAnswer(
@@ -288,6 +382,25 @@ async function appendLogs(
   }
 }
 
+async function upsertAgentContact(
+  supabase: SupabaseClient,
+  lineUserId: string,
+  lastMessage: string
+) {
+  try {
+    await supabase.from("line_agent_contacts").upsert(
+      {
+        line_user_id: lineUserId,
+        last_seen_at: new Date().toISOString(),
+        last_message: lastMessage.slice(0, 1000),
+      },
+      { onConflict: "line_user_id" }
+    );
+  } catch (error) {
+    console.warn("Failed to update LINE agent contact", error);
+  }
+}
+
 export type RunAgentResult = {
   reply: string;
   model: string;
@@ -317,7 +430,11 @@ export async function runAgent(
   }
 
   const supabase = getServiceSupabaseClient();
-  const questionHash = hashQuestion(trimmedMessage);
+  await upsertAgentContact(supabase, lineUserId, trimmedMessage);
+  const history = await fetchConversationHistory(supabase, lineUserId);
+  const knowledgeSnippets = await fetchKnowledgeSnippets(supabase);
+  const tagInfo = deriveActiveTags(history, trimmedMessage, knowledgeSnippets);
+  const questionHash = hashQuestion(trimmedMessage, tagInfo.topicKey);
   const cachedFaq = await fetchCachedFaqAnswer(supabase, questionHash);
 
   if (cachedFaq) {
@@ -330,6 +447,7 @@ export async function runAgent(
         metadata: {
           delivery: "line",
           source: "faq-cache",
+          tags: tagInfo.display,
         },
       },
       {
@@ -340,6 +458,7 @@ export async function runAgent(
           delivery: "line",
           model: cachedFaq.model ?? "faq-cache",
           source: "faq-cache",
+          tags: tagInfo.display,
         },
       },
     ]);
@@ -352,8 +471,6 @@ export async function runAgent(
   }
 
   const openAi = ensureOpenAI();
-  const history = await fetchConversationHistory(supabase, lineUserId);
-  const knowledgeSnippets = await fetchKnowledgeSnippets(supabase);
 
   if (!openAi) {
     await appendLogs(supabase, [
@@ -363,6 +480,7 @@ export async function runAgent(
         content: trimmedMessage,
         metadata: {
           delivery: "line",
+          tags: tagInfo.display,
         },
       },
     ]);
@@ -373,14 +491,19 @@ export async function runAgent(
     };
   }
 
+  const relevantSnippets = filterKnowledgeSnippets(
+    knowledgeSnippets,
+    tagInfo.normalizedSet
+  );
+
   const knowledgeBlock =
-    knowledgeSnippets.length > 0
+    relevantSnippets.length > 0
       ? [
           {
             role: "system" as const,
             content: [
               "Use the following company knowledge sources when relevant:\n",
-              knowledgeSnippets
+              relevantSnippets
                 .map(
                   (item, index) =>
                     `${index + 1}. [${item.type}] ${item.title} — ${item.content}`
@@ -391,11 +514,22 @@ export async function runAgent(
         ]
       : [];
 
+  const topicContext =
+    tagInfo.display.length > 0
+      ? [
+          {
+            role: "system" as const,
+            content: `Current conversation focus: ${tagInfo.display.join(", ")}`,
+          },
+        ]
+      : [];
+
   const inputMessages: Parameters<typeof openAi.responses.create>[0]["input"] = [
     {
       role: "system",
       content: systemPrompt,
     },
+    ...topicContext,
     ...knowledgeBlock,
     ...history,
     {
@@ -465,6 +599,7 @@ export async function runAgent(
         content: trimmedMessage,
         metadata: {
           delivery: "line",
+          tags: tagInfo.display,
         },
       },
       {
@@ -498,6 +633,7 @@ export async function runAgent(
         metadata: {
           delivery: "line",
           error: "assistant_failed",
+          tags: tagInfo.display,
         },
       },
     ]);
