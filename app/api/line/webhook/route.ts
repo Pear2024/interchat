@@ -7,7 +7,6 @@ import {
   type LineWebhookEvent,
   type LineMessageEvent,
   type LineFollowEvent,
-  type LineTextMessage,
 } from "@/lib/line";
 import { runAgent } from "@/lib/lineAgent";
 
@@ -16,11 +15,12 @@ export const runtime = "nodejs";
 const NON_TEXT_MESSAGE_RESPONSE =
   "ตอนนี้รองรับเฉพาะข้อความตัวอักษรค่ะ ฝากพิมพ์มาได้เลยนะคะ";
 type LineMessage = LineMessageEvent["message"];
+type TextMessage = Extract<LineMessage, { type: "text" }>;
 
 const FOLLOW_GREETING =
   "ขอบคุณที่ทักมาหาแพร์นะคะ ฉันชื่อทรี พร้อมช่วยปิดการขายและตอบทุกคำถามค่ะ 😊";
 
-function isTextMessage(message: LineMessage): message is LineTextMessage {
+function isTextMessage(message: LineMessage): message is TextMessage {
   return (
     typeof message === "object" &&
     message !== null &&
