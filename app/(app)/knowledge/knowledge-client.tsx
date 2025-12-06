@@ -53,7 +53,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
   const [ingesting, setIngesting] = useState(false);
   const [entries, setEntries] = useState<KnowledgeEntry[]>(initialEntries);
 
-  const latestEntries = useMemo(() => entries.slice(0, 20), [entries]);
+  const latestEntries = useMemo(() => entries.slice(0, 10), [entries]);
 
   async function postJson(payload: {
     type: KnowledgeTab;
