@@ -26,15 +26,17 @@ function parseRequestBody(rawBody: string): LineWebhookBody | null {
   }
 }
 
-type TextMessage = Extract<LineMessageEvent["message"], { type: "text" }>;
-
-function isTextMessage(message: LineMessageEvent["message"]): message is TextMessage {
-  return (
+function resolveMessageText(message: LineMessageEvent["message"]): string | null {
+  if (
     typeof message === "object" &&
     message !== null &&
     message.type === "text" &&
     typeof (message as { text?: unknown }).text === "string"
-  );
+  ) {
+    return (message as { text: string }).text.trim();
+  }
+
+  return null;
 }
 
 async function handleMessageEvent(event: LineMessageEvent) {
@@ -46,20 +48,13 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  if (!isTextMessage(message)) {
+  const text = resolveMessageText(message);
+  if (!text) {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
 
-  const text = message.text;
-  const normalizedText = typeof text === "string" ? text.trim() : "";
-
-  if (!normalizedText) {
-    await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
-    return;
-  }
-
-  const agentResult = await runAgent(userId, normalizedText as string);
+  const agentResult = await runAgent(userId, text);
   await sendLineReply(event.replyToken, agentResult.reply);
 }
 
