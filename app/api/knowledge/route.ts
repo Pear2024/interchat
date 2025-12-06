@@ -14,10 +14,11 @@ async function ensureAuthenticatedUser() {
 
 async function insertKnowledgeSource(payload: {
   submitted_by: string;
-  type: "url" | "pdf" | "youtube";
+  type: "url" | "pdf" | "youtube" | "text";
   title?: string | null;
   source: string;
   status?: string;
+  raw_text?: string | null;
 }) {
   const serviceClient = getServiceSupabaseClient();
   const { data, error } = await serviceClient
@@ -28,6 +29,7 @@ async function insertKnowledgeSource(payload: {
       title: payload.title,
       source: payload.source,
       status: payload.status ?? "pending",
+      raw_text: payload.raw_text ?? null,
     })
     .select("id,type,title,source,status,error_message,created_at")
     .single();
@@ -44,18 +46,39 @@ async function handleJsonPayload(request: NextRequest, userId: string) {
     type?: string;
     title?: string | null;
     source?: string;
+    content?: string;
   };
 
   const type = body.type?.trim();
   const source = body.source?.trim();
   const title = body.title?.trim() ?? null;
+  const content = body.content?.trim() ?? null;
 
-  if (!type || !source) {
-    return NextResponse.json({ error: "Missing type or source" }, { status: 400 });
+  if (!type) {
+    return NextResponse.json({ error: "Missing type" }, { status: 400 });
+  }
+
+  if (type === "text") {
+    if (!content) {
+      return NextResponse.json({ error: "Content is required for text sources" }, { status: 400 });
+    }
+    const record = await insertKnowledgeSource({
+      submitted_by: userId,
+      type: "text",
+      title: title || "Manual entry",
+      source: "manual",
+      raw_text: content,
+      status: "pending",
+    });
+    return NextResponse.json({ data: record });
   }
 
   if (type !== "url" && type !== "youtube") {
     return NextResponse.json({ error: "Unsupported knowledge source type" }, { status: 400 });
+  }
+
+  if (!source) {
+    return NextResponse.json({ error: "Source is required" }, { status: 400 });
   }
 
   const record = await insertKnowledgeSource({

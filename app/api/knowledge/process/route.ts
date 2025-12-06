@@ -14,7 +14,7 @@ async function listPendingSources(limit: number) {
   const supabase = getServiceSupabaseClient();
   const { data, error } = await supabase
     .from("knowledge_sources")
-    .select("id,type,source,submitted_by,title,status")
+    .select("id,type,source,submitted_by,title,status,raw_text")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(limit);

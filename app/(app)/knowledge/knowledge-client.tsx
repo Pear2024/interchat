@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 
 type KnowledgeType = "url" | "pdf" | "youtube";
+type KnowledgeTab = KnowledgeType | "text";
 
 export type KnowledgeEntry = {
   id: string;
-  type: KnowledgeType;
+  type: KnowledgeType | "text";
   title: string | null;
   source: string;
   status: string;
@@ -19,10 +20,11 @@ type StatusMessage = {
   text: string;
 } | null;
 
-const tabs: { value: KnowledgeType; label: string; description: string }[] = [
+const tabs: { value: KnowledgeTab; label: string; description: string }[] = [
   { value: "url", label: "Add URL", description: "เพิ่มหน้าเว็บหรือบทความที่ต้องการให้ Agent จำ" },
   { value: "pdf", label: "Add PDF", description: "อัปโหลดไฟล์ PDF (เอกสาร, คู่มือ, pitch deck)" },
   { value: "youtube", label: "Add YouTube", description: "ใส่ลิงก์หรือ Video ID เพื่อแปลงเป็นความรู้" },
+  { value: "text", label: "Add Text", description: "คัดลอกข้อความสำคัญวางตรงนี้ ระบบจะแปลงเป็นความรู้ทันที" },
 ];
 
 function formatTimestamp(value: string) {
@@ -37,20 +39,27 @@ function formatTimestamp(value: string) {
 }
 
 export default function KnowledgeClient({ initialEntries }: { initialEntries: KnowledgeEntry[] }) {
-  const [activeTab, setActiveTab] = useState<KnowledgeType>("url");
+  const [activeTab, setActiveTab] = useState<KnowledgeTab>("url");
   const [urlTitle, setUrlTitle] = useState("");
   const [urlValue, setUrlValue] = useState("");
   const [ytTitle, setYtTitle] = useState("");
   const [ytValue, setYtValue] = useState("");
   const [pdfTitle, setPdfTitle] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [textTitle, setTextTitle] = useState("");
+  const [textContent, setTextContent] = useState("");
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
   const [submitting, setSubmitting] = useState(false);
   const [entries, setEntries] = useState<KnowledgeEntry[]>(initialEntries);
 
   const latestEntries = useMemo(() => entries.slice(0, 20), [entries]);
 
-  async function postJson(payload: { type: KnowledgeType; title?: string; source: string }) {
+  async function postJson(payload: {
+    type: KnowledgeTab;
+    title?: string;
+    source?: string;
+    content?: string;
+  }) {
     const response = await fetch("/api/knowledge", {
       method: "POST",
       headers: {
@@ -164,6 +173,31 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
     }
   }
 
+  async function handleSubmitText() {
+    if (!textContent.trim()) {
+      setStatusMessage({ type: "error", text: "กรุณาวางข้อความก่อนนะคะ" });
+      return;
+    }
+    try {
+      setSubmitting(true);
+      setStatusMessage(null);
+      const entry = await postJson({
+        type: "text",
+        title: textTitle || "Manual entry",
+        content: textContent,
+      });
+      prependEntry(entry);
+      setTextTitle("");
+      setTextContent("");
+      setStatusMessage({ type: "success", text: "บันทึกข้อความเรียบร้อยแล้วค่ะ" });
+    } catch (error) {
+      console.error(error);
+      setStatusMessage({ type: "error", text: "บันทึกข้อความไม่สำเร็จ ลองใหม่อีกครั้งนะคะ" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function renderTabContent() {
     switch (activeTab) {
       case "url":
@@ -235,6 +269,30 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
               disabled={submitting}
             >
               บันทึก YouTube
+            </button>
+          </div>
+        );
+      case "text":
+        return (
+          <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4">
+            <input
+              className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-white focus:outline-none"
+              placeholder="ชื่อ / โน้ต (ไม่กรอกก็ได้)"
+              value={textTitle}
+              onChange={(event) => setTextTitle(event.target.value)}
+            />
+            <textarea
+              className="min-h-[160px] w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-slate-400 focus:border-white focus:outline-none"
+              placeholder="คัดลอกข้อความยาว ๆ วางตรงนี้"
+              value={textContent}
+              onChange={(event) => setTextContent(event.target.value)}
+            />
+            <button
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-70"
+              onClick={handleSubmitText}
+              disabled={submitting}
+            >
+              บันทึกข้อความ
             </button>
           </div>
         );

@@ -129,7 +129,7 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 
 ## Knowledge Ingestion
 
-1. Users submit URL / PDF / YouTube sources from `/knowledge`. Each entry lands in `knowledge_sources` with `status = pending`.
+1. Users submit URL / PDF / YouTube หรือข้อความที่คัดลอกเองจาก `/knowledge`. แต่ละรายการจะถูกบันทึกใน `knowledge_sources` พร้อม `status = pending`.
 2. Run the ingestion worker by calling:
 
    ```bash
@@ -159,7 +159,7 @@ PDF uploads are stored in the Supabase Storage bucket named in `KNOWLEDGE_STORAG
 |--------------------------------|-------------------------------------------------------|
 | `messages`, `message_translations` | Store raw text + translated text                    |
 | `line_agent_logs`              | Memory + audit log for the LINE OA sales agent        |
-| `knowledge_sources`            | Queue of URL / PDF / YouTube sources for ingestion    |
+| `knowledge_sources`            | Queue of URL / PDF / YouTube / Text sources for ingestion |
 | `knowledge_chunks`             | Processed text chunks ready for retrieval             |
 | `translation_cache`            | Prevent duplicate OpenAI calls                        |
 | `translation_usage_logs`       | Tracking tokens, cost, credits                        |

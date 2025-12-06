@@ -7,10 +7,11 @@ const DEFAULT_BUCKET = process.env.KNOWLEDGE_STORAGE_BUCKET?.trim() || "knowledg
 
 export type KnowledgeSourceRecord = {
   id: string;
-  type: "url" | "pdf" | "youtube";
+  type: "url" | "pdf" | "youtube" | "text";
   source: string;
   submitted_by: string;
   title?: string | null;
+  raw_text?: string | null;
 };
 
 function normalizeUrl(raw: string) {
@@ -133,6 +134,13 @@ export async function extractTextFromSource(
   record: KnowledgeSourceRecord,
   supabase: SupabaseClient
 ) {
+  if (record.type === "text") {
+    if (!record.raw_text) {
+      throw new Error("Manual text source does not contain content.");
+    }
+    return record.raw_text;
+  }
+
   if (record.type === "url" || record.type === "youtube") {
     return await fetchUrlContent(record.source);
   }
