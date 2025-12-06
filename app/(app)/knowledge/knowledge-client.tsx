@@ -20,6 +20,8 @@ type StatusMessage = {
   text: string;
 } | null;
 
+const TEXT_WORD_LIMIT = 1000;
+
 const tabs: { value: KnowledgeTab; label: string; description: string }[] = [
   { value: "url", label: "Add URL", description: "เพิ่มหน้าเว็บหรือบทความที่ต้องการให้ Agent จำ" },
   { value: "pdf", label: "Add PDF", description: "อัปโหลดไฟล์ PDF (เอกสาร, คู่มือ, pitch deck)" },
@@ -54,6 +56,11 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
   const [entries, setEntries] = useState<KnowledgeEntry[]>(initialEntries);
 
   const latestEntries = useMemo(() => entries.slice(0, 10), [entries]);
+  const textWordCount = useMemo(() => {
+    const trimmed = textContent.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).length;
+  }, [textContent]);
 
   async function postJson(payload: {
     type: KnowledgeTab;
@@ -317,10 +324,15 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
               value={textContent}
               onChange={(event) => setTextContent(event.target.value)}
             />
+            <p
+              className={`text-xs ${textWordCount > TEXT_WORD_LIMIT ? "text-rose-200" : "text-slate-300"}`}
+            >
+              {textWordCount.toLocaleString()} / {TEXT_WORD_LIMIT.toLocaleString()} คำ
+            </p>
             <button
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-70"
               onClick={handleSubmitText}
-              disabled={submitting}
+              disabled={submitting || textWordCount === 0 || textWordCount > TEXT_WORD_LIMIT}
             >
               บันทึกข้อความ
             </button>
