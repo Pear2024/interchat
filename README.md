@@ -53,6 +53,7 @@ LINE_AGENT_MEMORY_LIMIT=15
 # PRICING_TARGET_MARGIN=0.6
 # PRICING_MIN_PRICE_PER_CREDIT=0.01
 KNOWLEDGE_STORAGE_BUCKET=knowledge-sources
+KNOWLEDGE_INGESTION_KEY=your-secure-ingestion-key
 
 # Stripe one-time purchase price IDs (leave blank to disable checkout buttons)
 STRIPE_SECRET_KEY=...
@@ -126,6 +127,24 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 
 ---
 
+## Knowledge Ingestion
+
+1. Users submit URL / PDF / YouTube sources from `/knowledge`. Each entry lands in `knowledge_sources` with `status = pending`.
+2. Run the ingestion worker by calling:
+
+   ```bash
+   curl -X POST \
+     -H "Authorization: Bearer $KNOWLEDGE_INGESTION_KEY" \
+     https://your-domain.com/api/knowledge/process
+   ```
+
+   (Replace `your-domain.com` with localhost or your Vercel deployment. Add `?limit=5` to process more items per run.)
+3. The worker fetches content, chunks it, writes to `knowledge_chunks`, and marks sources `ready` or `error`. Schedule this endpoint via Vercel Cron or any job runner to automate ingestion.
+
+PDF uploads are stored in the Supabase Storage bucket named in `KNOWLEDGE_STORAGE_BUCKET`.
+
+---
+
 ## Deployment Notes
 
 - The project is configured for **Next.js 16 + Turbopack**. When deploying to Vercel, make sure environment variables match `.env.local`.
@@ -141,6 +160,7 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 | `messages`, `message_translations` | Store raw text + translated text                    |
 | `line_agent_logs`              | Memory + audit log for the LINE OA sales agent        |
 | `knowledge_sources`            | Queue of URL / PDF / YouTube sources for ingestion    |
+| `knowledge_chunks`             | Processed text chunks ready for retrieval             |
 | `translation_cache`            | Prevent duplicate OpenAI calls                        |
 | `translation_usage_logs`       | Tracking tokens, cost, credits                        |
 | `user_credit_balances`, `user_credit_transactions` | Credit wallet & audit trail             |

@@ -60,6 +60,70 @@ type ConversationMessage = {
   content: string;
 };
 
+type KnowledgeChunkRow = {
+  content: string;
+  source_id: string;
+  chunk_index: number;
+};
+
+type KnowledgeSourceMeta = {
+  id: string;
+  title: string | null;
+  type: string;
+};
+
+async function fetchKnowledgeSnippets(
+  supabase: SupabaseClient,
+  sourceLimit = 3,
+  chunksPerSource = 2
+) {
+  try {
+    const { data: sourceRows } = await supabase
+      .from("knowledge_sources")
+      .select("id,title,type")
+      .eq("status", "ready")
+      .order("created_at", { ascending: false })
+      .limit(sourceLimit);
+
+    if (!sourceRows || sourceRows.length === 0) {
+      return [];
+    }
+
+    const sourceIds = sourceRows.map((row) => row.id);
+    const { data: chunkRows } = await supabase
+      .from("knowledge_chunks")
+      .select("source_id, chunk_index, content")
+      .in("source_id", sourceIds)
+      .order("chunk_index", { ascending: true });
+
+    if (!chunkRows) {
+      return [];
+    }
+
+    const snippets: { title: string; type: string; content: string }[] = [];
+
+    (sourceRows as KnowledgeSourceMeta[]).forEach((source) => {
+      const related = (chunkRows as KnowledgeChunkRow[])
+        .filter((chunk) => chunk.source_id === source.id)
+        .sort((a, b) => a.chunk_index - b.chunk_index)
+        .slice(0, chunksPerSource);
+
+      if (related.length > 0) {
+        snippets.push({
+          title: source.title ?? `${source.type.toUpperCase()} source`,
+          type: source.type,
+          content: related.map((chunk) => chunk.content).join(" "),
+        });
+      }
+    });
+
+    return snippets;
+  } catch (error) {
+    console.warn("Failed to fetch knowledge snippets", error);
+    return [];
+  }
+}
+
 function extractFirstText(response: OpenAI.Responses.Response) {
   if (typeof response.output_text === "string") {
     const text = response.output_text.trim();
@@ -174,6 +238,7 @@ export async function runAgent(
   const supabase = getServiceSupabaseClient();
 
   const history = await fetchConversationHistory(supabase, lineUserId);
+  const knowledgeSnippets = await fetchKnowledgeSnippets(supabase);
 
   if (!openAi) {
     await appendLogs(supabase, [
@@ -193,21 +258,39 @@ export async function runAgent(
     };
   }
 
-  const inputMessages: Parameters<typeof openAi.responses.create>[0]["input"] =
-    [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      ...history,
-      {
-        role: "user",
-        content: trimmedMessage,
-      },
-    ] as {
-      role: "system" | "user" | "assistant";
-      content: string;
-    }[];
+  const knowledgeBlock =
+    knowledgeSnippets.length > 0
+      ? [
+          {
+            role: "system" as const,
+            content: [
+              "Use the following company knowledge sources when relevant:\n",
+              knowledgeSnippets
+                .map(
+                  (item, index) =>
+                    `${index + 1}. [${item.type}] ${item.title} — ${item.content}`
+                )
+                .join("\n\n"),
+            ].join(""),
+          },
+        ]
+      : [];
+
+  const inputMessages: Parameters<typeof openAi.responses.create>[0]["input"] = [
+    {
+      role: "system",
+      content: systemPrompt,
+    },
+    ...knowledgeBlock,
+    ...history,
+    {
+      role: "user",
+      content: trimmedMessage,
+    },
+  ] as {
+    role: "system" | "user" | "assistant";
+    content: string;
+  }[];
 
   try {
     const response = await openAi.responses.create({

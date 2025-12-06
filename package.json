@@ -13,8 +13,10 @@
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.76.1",
+    "html-to-text": "^9.0.5",
     "next": "^16.0.7",
     "openai": "^4.104.0",
+    "pdf-parse": "^2.4.5",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "stripe": "^19.1.0"
