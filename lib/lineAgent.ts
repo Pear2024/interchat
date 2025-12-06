@@ -241,7 +241,7 @@ async function fetchConversationHistory(
       .from("line_agent_logs")
       .select("role, content")
       .eq("line_user_id", lineUserId)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(MAX_MEMORY_MESSAGES);
 
     if (error) {
@@ -249,7 +249,8 @@ async function fetchConversationHistory(
       return [];
     }
 
-    return (data ?? [])
+    const chronological = (data ?? [])
+      .reverse()
       .filter(
         (row): row is { role: "user" | "assistant"; content: string } =>
           row.role === "user" || row.role === "assistant"
@@ -258,6 +259,8 @@ async function fetchConversationHistory(
         role: row.role,
         content: row.content,
       }));
+
+    return chronological;
   } catch (error) {
     console.warn("LINE agent memory query failed", error);
     return [];
