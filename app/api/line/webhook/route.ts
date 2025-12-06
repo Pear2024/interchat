@@ -35,12 +35,12 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  if (message.type !== "text") {
+  if (message.type !== "text" || typeof message.text !== "string") {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
 
-  const agentResult = await runAgent(userId, message.text ?? "");
+  const agentResult = await runAgent(userId, message.text);
   await sendLineReply(event.replyToken, agentResult.reply);
 }
 
