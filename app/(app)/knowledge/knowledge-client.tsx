@@ -252,6 +252,14 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
           <p className="text-sm text-slate-300">
             เพิ่ม URL, PDF และ YouTube ในหน้าเดียว ระบบจะนำไปประมวลผลเพื่อสอน Agent ให้ตอบตรงกับข้อมูลบริษัทเท่านั้น
           </p>
+          <div className="mt-3">
+            <a
+              href="/knowledge/logs"
+              className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:border-white/40 hover:bg-white/20"
+            >
+              ดูรายการทั้งหมด
+            </a>
+          </div>
         </header>
 
         <section className="space-y-4">
