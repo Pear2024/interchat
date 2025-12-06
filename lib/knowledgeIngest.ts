@@ -1,5 +1,5 @@
 import { htmlToText } from "html-to-text";
-import pdfParse from "pdf-parse";
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MAX_CHUNK_WORDS = 350;
