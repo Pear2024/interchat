@@ -143,6 +143,8 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 
 PDF uploads are stored in the Supabase Storage bucket named in `KNOWLEDGE_STORAGE_BUCKET`.
 
+Repeated questions from LINE OA are cached in `knowledge_faq` automatically so the agent can answer common queries instantly without reprocessing knowledge chunks.
+
 ---
 
 ## Deployment Notes
@@ -161,6 +163,7 @@ PDF uploads are stored in the Supabase Storage bucket named in `KNOWLEDGE_STORAG
 | `line_agent_logs`              | Memory + audit log for the LINE OA sales agent        |
 | `knowledge_sources`            | Queue of URL / PDF / YouTube / Text sources for ingestion |
 | `knowledge_chunks`             | Processed text chunks ready for retrieval             |
+| `knowledge_faq`                | Cached Q&A pairs for frequently repeated questions    |
 | `translation_cache`            | Prevent duplicate OpenAI calls                        |
 | `translation_usage_logs`       | Tracking tokens, cost, credits                        |
 | `user_credit_balances`, `user_credit_transactions` | Credit wallet & audit trail             |

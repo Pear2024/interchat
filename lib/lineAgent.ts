@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createHash } from "crypto";
 
 import { getServiceSupabaseClient } from "./supabaseServer";
 
@@ -72,6 +73,13 @@ type KnowledgeSourceMeta = {
   type: string;
 };
 
+type KnowledgeFaqRow = {
+  id: string;
+  answer: string;
+  usage_count: number | null;
+  model: string | null;
+};
+
 async function fetchKnowledgeSnippets(
   supabase: SupabaseClient,
   sourceLimit = 3,
@@ -121,6 +129,75 @@ async function fetchKnowledgeSnippets(
   } catch (error) {
     console.warn("Failed to fetch knowledge snippets", error);
     return [];
+  }
+}
+
+function hashQuestion(input: string) {
+  return createHash("sha1").update(input.toLowerCase()).digest("hex");
+}
+
+async function fetchCachedFaqAnswer(
+  supabase: SupabaseClient,
+  hash: string
+) {
+  try {
+    const { data, error } = await supabase
+      .from("knowledge_faq")
+      .select("id, answer, usage_count, model")
+      .eq("question_hash", hash)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Failed to load cached FAQ answer", error);
+      return null;
+    }
+
+    return (data ?? null) as KnowledgeFaqRow | null;
+  } catch (error) {
+    console.warn("FAQ lookup failed", error);
+    return null;
+  }
+}
+
+async function updateFaqUsage(
+  supabase: SupabaseClient,
+  id: string,
+  currentUsage: number | null
+) {
+  try {
+    await supabase
+      .from("knowledge_faq")
+      .update({
+        usage_count: (currentUsage ?? 0) + 1,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+  } catch (error) {
+    console.warn("Failed to update FAQ usage", error);
+  }
+}
+
+async function storeFaqAnswer(
+  supabase: SupabaseClient,
+  hash: string,
+  question: string,
+  answer: string,
+  model: string
+) {
+  try {
+    await supabase.from("knowledge_faq").upsert(
+      {
+        question_hash: hash,
+        question_raw: question,
+        answer,
+        model,
+        usage_count: 0,
+        last_used_at: new Date().toISOString(),
+      },
+      { onConflict: "question_hash" }
+    );
+  } catch (error) {
+    console.warn("Failed to store FAQ answer", error);
   }
 }
 
@@ -234,9 +311,42 @@ export async function runAgent(
     };
   }
 
-  const openAi = ensureOpenAI();
   const supabase = getServiceSupabaseClient();
+  const questionHash = hashQuestion(trimmedMessage);
+  const cachedFaq = await fetchCachedFaqAnswer(supabase, questionHash);
 
+  if (cachedFaq) {
+    await updateFaqUsage(supabase, cachedFaq.id, cachedFaq.usage_count ?? 0);
+    await appendLogs(supabase, [
+      {
+        line_user_id: lineUserId,
+        role: "user",
+        content: trimmedMessage,
+        metadata: {
+          delivery: "line",
+          source: "faq-cache",
+        },
+      },
+      {
+        line_user_id: lineUserId,
+        role: "assistant",
+        content: cachedFaq.answer,
+        metadata: {
+          delivery: "line",
+          model: cachedFaq.model ?? "faq-cache",
+          source: "faq-cache",
+        },
+      },
+    ]);
+
+    return {
+      reply: cachedFaq.answer,
+      model: cachedFaq.model ?? "faq-cache",
+      usage: null,
+    };
+  }
+
+  const openAi = ensureOpenAI();
   const history = await fetchConversationHistory(supabase, lineUserId);
   const knowledgeSnippets = await fetchKnowledgeSnippets(supabase);
 
@@ -337,6 +447,8 @@ export async function runAgent(
         },
       },
     ]);
+
+    await storeFaqAnswer(supabase, questionHash, trimmedMessage, reply, agentModel);
 
     return {
       reply,
