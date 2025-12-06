@@ -20,7 +20,7 @@ type StatusMessage = {
   text: string;
 } | null;
 
-const TEXT_WORD_LIMIT = 1000;
+const TEXT_WORD_LIMIT = 1100;
 
 const tabs: { value: KnowledgeTab; label: string; description: string }[] = [
   { value: "url", label: "Add URL", description: "เพิ่มหน้าเว็บหรือบทความที่ต้องการให้ Agent จำ" },
