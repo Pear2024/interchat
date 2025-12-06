@@ -26,6 +26,19 @@ function parseRequestBody(rawBody: string): LineWebhookBody | null {
   }
 }
 
+function extractTextMessage(message: LineMessageEvent["message"]): string | null {
+  if (
+    typeof message === "object" &&
+    message !== null &&
+    message.type === "text" &&
+    typeof (message as { text?: unknown }).text === "string"
+  ) {
+    return (message as { text: string }).text;
+  }
+
+  return null;
+}
+
 async function handleMessageEvent(event: LineMessageEvent) {
   const message = event.message;
   const userId = event.source?.type === "user" ? event.source.userId : event.source?.userId;
@@ -35,13 +48,8 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  if (!message || typeof message !== "object" || message.type !== "text") {
-    await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
-    return;
-  }
-
-  const text = (message as { text?: string }).text;
-  if (!text || typeof text !== "string") {
+  const text = extractTextMessage(message);
+  if (!text) {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
