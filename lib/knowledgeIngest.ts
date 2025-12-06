@@ -21,6 +21,15 @@ function normalizeUrl(raw: string) {
   return `https://${raw}`;
 }
 
+function resolveGoogleDocExport(url: string) {
+  const docMatch = url.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i);
+  if (docMatch) {
+    const docId = docMatch[1];
+    return `https://docs.google.com/document/d/${docId}/export?format=txt`;
+  }
+  return null;
+}
+
 async function fetchReadableFromProxy(url: string) {
   try {
     const proxied = `https://r.jina.ai/${url}`;
@@ -43,6 +52,23 @@ async function fetchReadableFromProxy(url: string) {
 
 async function fetchUrlContent(url: string) {
   const normalized = normalizeUrl(url);
+  const googleDocExport = resolveGoogleDocExport(normalized);
+
+  if (googleDocExport) {
+    const response = await fetch(googleDocExport, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (IngestBot/1.0)",
+        Accept: "text/plain",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Google Doc export: ${response.status}`);
+    }
+
+    return await response.text();
+  }
+
   const proxiedText = await fetchReadableFromProxy(normalized);
   if (proxiedText) {
     return proxiedText;
