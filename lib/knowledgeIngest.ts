@@ -1,5 +1,4 @@
 import { htmlToText } from "html-to-text";
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MAX_CHUNK_WORDS = 350;
@@ -67,10 +66,21 @@ async function fetchUrlContent(url: string) {
   });
 }
 
-async function fetchPdfContent(
-  source: string,
-  supabase: SupabaseClient
-) {
+let pdfParser: ((data: Buffer) => Promise<{ text: string }>) | null = null;
+
+async function ensurePdfParser() {
+  if (!pdfParser) {
+    const imported = await import("pdf-parse");
+    const parser = (imported as { default?: (data: Buffer) => Promise<{ text: string }> }).default;
+    if (!parser) {
+      throw new Error("Unable to load pdf-parse module");
+    }
+    pdfParser = parser;
+  }
+  return pdfParser;
+}
+
+async function fetchPdfContent(source: string, supabase: SupabaseClient) {
   const [bucket, ...pathSegments] = source.includes(":")
     ? source.split(":")
     : [DEFAULT_BUCKET, source];
@@ -88,7 +98,8 @@ async function fetchPdfContent(
 
   const arrayBuffer = await data.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const parsed = await pdfParse(buffer);
+  const parse = await ensurePdfParser();
+  const parsed = await parse(buffer);
   return parsed.text;
 }
 
