@@ -49,7 +49,7 @@ async function handleMessageEvent(event: LineMessageEvent) {
   }
 
   const text = extractTextMessage(message);
-  if (!text) {
+  if (typeof text !== "string" || text.trim().length === 0) {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
