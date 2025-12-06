@@ -59,7 +59,7 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  const agentResult = await runAgent(userId, normalizedText);
+  const agentResult = await runAgent(userId, normalizedText as string);
   await sendLineReply(event.replyToken, agentResult.reply);
 }
 
