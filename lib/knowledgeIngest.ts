@@ -1,7 +1,7 @@
 import { htmlToText } from "html-to-text";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const MAX_CHUNK_WORDS = 350;
+const MAX_CHUNK_WORDS = 1000;
 const MAX_CHUNKS = 30;
 const DEFAULT_BUCKET = process.env.KNOWLEDGE_STORAGE_BUCKET?.trim() || "knowledge-sources";
 
