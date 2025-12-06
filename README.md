@@ -41,6 +41,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENAI_API_KEY=...
 NEXT_PUBLIC_SITE_URL=https://interchat-eight.vercel.app/
+LINE_CHANNEL_SECRET=...
+LINE_CHANNEL_ACCESS_TOKEN=...
+LINE_AGENT_MODEL=gpt-4o-mini
+LINE_AGENT_MEMORY_LIMIT=15
+# LINE_AGENT_SYSTEM_PROMPT="Custom instructions for the LINE agent"
 
 # Optional overrides
 # OPENAI_TRANSLATION_MODEL=gpt-4o-mini
@@ -133,6 +138,7 @@ To enforce “open room only” behaviour, ensure the `is_locked` field is manag
 | Table / RPC                    | Purpose                                               |
 |--------------------------------|-------------------------------------------------------|
 | `messages`, `message_translations` | Store raw text + translated text                    |
+| `line_agent_logs`              | Memory + audit log for the LINE OA sales agent        |
 | `translation_cache`            | Prevent duplicate OpenAI calls                        |
 | `translation_usage_logs`       | Tracking tokens, cost, credits                        |
 | `user_credit_balances`, `user_credit_transactions` | Credit wallet & audit trail             |
