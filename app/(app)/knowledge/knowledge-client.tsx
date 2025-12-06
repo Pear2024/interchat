@@ -50,6 +50,7 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
   const [textContent, setTextContent] = useState("");
   const [statusMessage, setStatusMessage] = useState<StatusMessage>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
   const [entries, setEntries] = useState<KnowledgeEntry[]>(initialEntries);
 
   const latestEntries = useMemo(() => entries.slice(0, 20), [entries]);
@@ -198,6 +199,35 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
     }
   }
 
+  async function triggerIngestion() {
+    try {
+      setIngesting(true);
+      setStatusMessage(null);
+      const response = await fetch("/api/run-ingest", {
+        method: "POST",
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error ?? "Ingestion failed");
+      }
+
+      setStatusMessage({
+        type: "success",
+        text: "เริ่มประมวลผลแหล่งความรู้ตามคิวแล้วค่ะ",
+      });
+    } catch (error) {
+      console.error(error);
+      setStatusMessage({
+        type: "error",
+        text: "เรียกใช้งานตัวประมวลผลไม่สำเร็จ ลองใหม่อีกครั้งนะคะ",
+      });
+    } finally {
+      setIngesting(false);
+    }
+  }
+
   function renderTabContent() {
     switch (activeTab) {
       case "url":
@@ -310,13 +340,20 @@ export default function KnowledgeClient({ initialEntries }: { initialEntries: Kn
           <p className="text-sm text-slate-300">
             เพิ่ม URL, PDF และ YouTube ในหน้าเดียว ระบบจะนำไปประมวลผลเพื่อสอน Agent ให้ตอบตรงกับข้อมูลบริษัทเท่านั้น
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap gap-3">
             <a
               href="/knowledge/logs"
               className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:border-white/40 hover:bg-white/20"
             >
               ดูรายการทั้งหมด
             </a>
+            <button
+              onClick={triggerIngestion}
+              disabled={ingesting}
+              className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-400/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-100 transition hover:border-emerald-300/70 hover:bg-emerald-400/30 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {ingesting ? "กำลังประมวลผล..." : "ประมวลผลทันที"}
+            </button>
           </div>
         </header>
 
