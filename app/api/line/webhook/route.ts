@@ -40,12 +40,8 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  const text =
-    typeof (message as { text?: unknown }).text === "string"
-      ? (message as { text: string }).text
-      : "";
-
-  if (!text) {
+  const text = (message as { text?: string }).text;
+  if (!text || typeof text !== "string") {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
