@@ -14,20 +14,8 @@ export const runtime = "nodejs";
 
 const NON_TEXT_MESSAGE_RESPONSE =
   "ตอนนี้รองรับเฉพาะข้อความตัวอักษรค่ะ ฝากพิมพ์มาได้เลยนะคะ";
-type LineMessage = LineMessageEvent["message"];
-type TextMessage = Extract<LineMessage, { type: "text" }>;
-
 const FOLLOW_GREETING =
   "ขอบคุณที่ทักมาหาแพร์นะคะ ฉันชื่อทรี พร้อมช่วยปิดการขายและตอบทุกคำถามค่ะ 😊";
-
-function isTextMessage(message: LineMessage): message is TextMessage {
-  return (
-    typeof message === "object" &&
-    message !== null &&
-    message.type === "text" &&
-    typeof (message as { text?: unknown }).text === "string"
-  );
-}
 
 function parseRequestBody(rawBody: string): LineWebhookBody | null {
   try {
@@ -47,12 +35,22 @@ async function handleMessageEvent(event: LineMessageEvent) {
     return;
   }
 
-  if (!isTextMessage(message)) {
+  if (!message || typeof message !== "object" || message.type !== "text") {
     await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
     return;
   }
 
-  const agentResult = await runAgent(userId, message.text);
+  const text =
+    typeof (message as { text?: unknown }).text === "string"
+      ? (message as { text: string }).text
+      : "";
+
+  if (!text) {
+    await sendLineReply(event.replyToken, NON_TEXT_MESSAGE_RESPONSE);
+    return;
+  }
+
+  const agentResult = await runAgent(userId, text);
   await sendLineReply(event.replyToken, agentResult.reply);
 }
 
