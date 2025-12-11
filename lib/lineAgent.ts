@@ -594,6 +594,14 @@ export async function runAgent(
     tagInfo.normalizedSet
   );
   const boundedSnippets = clampKnowledgeSnippets(relevantSnippets);
+  const knowledgeSummaryMessage =
+    boundedSnippets.length > 0
+      ? `Knowledge sources currently available (${boundedSnippets.length}): ${boundedSnippets
+          .map((snippet) => `[${snippet.type}] ${snippet.title}`)
+          .join(
+            ", "
+          )}. If a user asks how many products exist or what products are available, use this list to answer, and mention when the list is limited.`
+      : null;
 
   const knowledgeBlock =
     boundedSnippets.length > 0
@@ -628,6 +636,14 @@ export async function runAgent(
       role: "system",
       content: systemPrompt,
     },
+    ...(knowledgeSummaryMessage
+      ? [
+          {
+            role: "system" as const,
+            content: knowledgeSummaryMessage,
+          },
+        ]
+      : []),
     ...topicContext,
     ...knowledgeBlock,
     ...history,
