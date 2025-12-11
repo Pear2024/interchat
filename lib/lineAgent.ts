@@ -28,6 +28,26 @@ const MAX_MEMORY_MESSAGES = Math.max(
   1
 );
 
+const MAX_HISTORY_CHARS = Math.max(
+  Number(process.env.LINE_AGENT_MAX_HISTORY_CHARS ?? 4000) || 4000,
+  500
+);
+
+const MAX_KNOWLEDGE_SOURCES = Math.max(
+  Number(process.env.LINE_AGENT_MAX_KNOWLEDGE_SOURCES ?? 6) || 6,
+  1
+);
+
+const MAX_KNOWLEDGE_CHARS_PER_SOURCE = Math.max(
+  Number(process.env.LINE_AGENT_MAX_KNOWLEDGE_CHARS ?? 800) || 800,
+  200
+);
+
+const MAX_KNOWLEDGE_TOTAL_CHARS = Math.max(
+  Number(process.env.LINE_AGENT_MAX_KNOWLEDGE_TOTAL_CHARS ?? 6000) || 6000,
+  500
+);
+
 const FALLBACK_REPLY =
   "ระบบติดขัดชั่วคราว รบกวนพิมพ์มาอีกครั้งหรือรออีกสักครู่นะคะ";
 
@@ -80,6 +100,81 @@ type KnowledgeSnippet = {
   content: string;
   tags: string[];
 };
+
+const HISTORY_TRUNCATION_NOTICE = "\n[message trimmed for length]";
+
+function clampConversationHistory(
+  history: ConversationMessage[],
+  maxChars: number
+) {
+  if (!history.length || maxChars <= 0) {
+    return [];
+  }
+
+  const bounded: ConversationMessage[] = [];
+  let remaining = maxChars;
+
+  for (let index = history.length - 1; index >= 0 && remaining > 0; index -= 1) {
+    const entry = history[index];
+    const content = entry.content ?? "";
+
+    if (content.length === 0) {
+      bounded.push(entry);
+      continue;
+    }
+
+    let nextContent = content;
+
+    if (content.length > remaining) {
+      const allowance = Math.max(remaining - HISTORY_TRUNCATION_NOTICE.length, 0);
+      nextContent =
+        allowance > 0
+          ? `${content.slice(0, allowance)}${HISTORY_TRUNCATION_NOTICE}`
+          : HISTORY_TRUNCATION_NOTICE.trimStart();
+    }
+
+    const size = Math.min(nextContent.length, remaining);
+
+    if (size <= 0) {
+      break;
+    }
+
+    bounded.push({
+      ...entry,
+      content: nextContent.slice(0, size),
+    });
+    remaining -= size;
+  }
+
+  return bounded.reverse();
+}
+
+function clampKnowledgeSnippets(snippets: KnowledgeSnippet[]) {
+  if (!snippets.length) {
+    return [];
+  }
+
+  const limited: KnowledgeSnippet[] = [];
+  let totalChars = 0;
+
+  for (const snippet of snippets.slice(0, MAX_KNOWLEDGE_SOURCES)) {
+    const remaining = MAX_KNOWLEDGE_TOTAL_CHARS - totalChars;
+    if (remaining <= 0) {
+      break;
+    }
+
+    const allowedChars = Math.min(MAX_KNOWLEDGE_CHARS_PER_SOURCE, remaining);
+    const content =
+      snippet.content.length > allowedChars
+        ? snippet.content.slice(0, allowedChars)
+        : snippet.content;
+
+    limited.push({ ...snippet, content });
+    totalChars += content.length;
+  }
+
+  return limited;
+}
 
 type KnowledgeFaqRow = {
   id: string;
@@ -431,9 +526,10 @@ export async function runAgent(
 
   const supabase = getServiceSupabaseClient();
   await upsertAgentContact(supabase, lineUserId, trimmedMessage);
-  const history = await fetchConversationHistory(supabase, lineUserId);
+  const fullHistory = await fetchConversationHistory(supabase, lineUserId);
+  const history = clampConversationHistory(fullHistory, MAX_HISTORY_CHARS);
   const knowledgeSnippets = await fetchKnowledgeSnippets(supabase);
-  const tagInfo = deriveActiveTags(history, trimmedMessage, knowledgeSnippets);
+  const tagInfo = deriveActiveTags(fullHistory, trimmedMessage, knowledgeSnippets);
   const questionHash = hashQuestion(trimmedMessage, tagInfo.topicKey);
   const cachedFaq = await fetchCachedFaqAnswer(supabase, questionHash);
 
@@ -495,15 +591,16 @@ export async function runAgent(
     knowledgeSnippets,
     tagInfo.normalizedSet
   );
+  const boundedSnippets = clampKnowledgeSnippets(relevantSnippets);
 
   const knowledgeBlock =
-    relevantSnippets.length > 0
+    boundedSnippets.length > 0
       ? [
           {
             role: "system" as const,
             content: [
               "Use the following company knowledge sources when relevant:\n",
-              relevantSnippets
+              boundedSnippets
                 .map(
                   (item, index) =>
                     `${index + 1}. [${item.type}] ${item.title} — ${item.content}`
